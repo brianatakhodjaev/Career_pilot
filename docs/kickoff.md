@@ -17,7 +17,7 @@ as both the user and the job market change.
 
 The app has four jobs, in order:
 
-1. **Assess** — give the user an objective, data-grounded assessment of how
+1. **Assess** — give the user an honest, evidence-based assessment of how
    exposed their current role is to AI automation. The goal is a clear
    baseline, never to frighten.
 2. **Plan** — show how that position can be improved through a concrete,
@@ -27,7 +27,7 @@ The app has four jobs, in order:
 4. **Direct** — surface emerging job-market trends and new roles the user could
    realistically move toward.
 
-**Tone throughout: objective, constructive, never alarmist. Exposure is not
+**Tone throughout: honest, constructive, never alarmist. Exposure is not
 destiny.**
 
 ---
@@ -39,6 +39,12 @@ destiny.**
 2. **Threatened** (35–45) — current role being disrupted by AI; needs a
    defensive but ambitious pivot.
 3. **Starter** (22–28) — entering an AI-shaped job market; needs direction.
+
+**MVP focus.** While all three profiles are supported, v1's polish, default
+copy, and field-test recruitment target the **Threatened** profile (mid-career,
+35–45, role being reshaped by AI). This segment has the strongest pain and the
+clearest willingness to pay. The Veteran and Starter profiles remain fully
+supported; they are simply not the tuning target for v1.
 
 ---
 
@@ -124,8 +130,8 @@ navigation. Answers stored in state, submitted together.
 
 ## 6. The AI exposure assessment
 
-After the questionnaire, call Claude to produce an objective automation-exposure
-assessment of the user's current role.
+After the questionnaire, call Claude to produce an honest, evidence-based
+automation-exposure assessment of the user's current role.
 
 **Methodology** — based on the Anthropic Economic Index distinction between
 *observed exposure* (what AI does in the role today) and *theoretical exposure*
@@ -137,6 +143,22 @@ answers — not just the job title.
 - `scoreToday` — observed exposure now
 - `scoreProjected` — theoretical exposure ~2028 if the user takes no action
 - `scoreWithPlan` — projected exposure after completing the recommended plan
+
+**Five-factor explainability breakdown.** The assessment must show *why* the
+score is what it is. It includes a fixed `factors` array — always these five,
+always in this order:
+
+1. `Routine and repeatable tasks`
+2. `Content and analysis generation`
+3. `Judgment in ambiguous situations`
+4. `Relationship and trust dependence`
+5. `Physical and on-site work`
+
+Each is scored 0–10, where **10 means AI can already perform most of that
+dimension** of the user's work. Factors 1–2 tend to score high for exposed
+roles; factors 3–5 are the human-advantage dimensions and tend to score low.
+Each factor's `note` explains that score for the specific user. The score is
+an evidence-based estimate, not an exact measurement.
 
 **CRITICAL — tone and safety.** This feature must never read as a doom verdict.
 The output MUST always include `defensibleTasks` (what remains genuinely human
@@ -158,15 +180,31 @@ Reason about the user's SPECIFIC tasks, not just their job title. Be honest
 but never alarmist — exposure is task-level, not person-level, and exposure
 is not unemployment.
 
+Your score is an evidence-based estimate, not an exact measurement. Do not
+imply false precision. The factor breakdown must make the score explainable:
+the user should understand WHY they scored as they did.
+
+Score these five fixed factors, each 0-10, where 10 means AI can already
+perform most of that dimension of the user's work:
+- "Routine and repeatable tasks"
+- "Content and analysis generation"
+- "Judgment in ambiguous situations"
+- "Relationship and trust dependence"
+- "Physical and on-site work"
+For each factor, give a one-sentence note explaining that score for THIS user.
+
 Return ONLY valid JSON, no markdown, with this structure:
 {
   "occupationLabel": string,
-  "scoreToday": number,        // 0-10, observed exposure now
-  "scoreProjected": number,    // 0-10, theoretical exposure ~2028, no action
-  "scoreWithPlan": number,     // 0-10, projected after the recommended plan
-  "exposedTasks": string[],    // 3-4 of their tasks most exposed to AI
-  "defensibleTasks": string[], // 3-4 tasks that remain genuinely human
-  "reasoning": string          // 2-3 sentences, objective and constructive
+  "scoreToday": number,
+  "scoreProjected": number,
+  "scoreWithPlan": number,
+  "factors": [
+    { "label": string, "score": number, "note": string }
+  ],
+  "exposedTasks": string[],
+  "defensibleTasks": string[],
+  "reasoning": string
 }
 ```
 
@@ -346,6 +384,10 @@ Run `npx prisma migrate dev` after adding these.
 6. Dashboard — today's task checklist with completion toggle; three stat cards
    (plan % complete, day streak, minutes logged); a start/stop session timer.
 
+**MVP focus.** While all three profiles are supported, v1's polish, default
+copy, and field-test recruitment target the **Threatened** profile (mid-career,
+35–45). See §2 for the rationale.
+
 ---
 
 ## 11. Build first tasks — in order
@@ -365,11 +407,14 @@ Run `npx prisma migrate dev` after adding these.
    back/next, answers held in state.
 7. Build `POST /api/assess-exposure` using the section 6 spec.
 8. Build `/onboard/assessment` — three score gauges, exposed vs defensible task
-   columns, the "exposure is not destiny" reframe box.
+   columns, the five-factor breakdown, the "exposure is not destiny" reframe.
+   Must follow §13 design principles (defensible content first, factor
+   breakdown shown, scores never displayed alone).
 9. Build `POST /api/generate-plans` using the section 7 spec.
 10. Build `/onboard/plans` — 3 plan cards (match score, timeline, effort, tags,
     description); user taps one; confirm writes the chosen plan to the DB.
 11. Build `/dashboard` — task checklist, three stat cards, session timer.
+    Must follow §13 design principles (progress leads, score not foregrounded).
 
 ---
 
@@ -386,6 +431,54 @@ Run `npx prisma migrate dev` after adding these.
 
 Phase 1 delivers app jobs #1 (assess) and #2 (plan). Jobs #3 (supply content)
 and #4 (direct toward trends) come in Phase 3, once real users are active.
+
+**Content layer (app job #3, Phase 3).** When built, the educational content
+layer curates and links to existing external learning resources, matched to
+the user's plan. CareerPilot is an orchestration and personalization layer —
+it does not produce or host its own course library. This keeps the model
+scalable and avoids becoming a full education provider.
+
+**Retention (Phase 3 priority).** Sustained retention past the initial
+motivation spike is the central operational risk for this category. Streaks
+and session tracking alone are unlikely to be sufficient. An accountability
+layer — cohorts, check-ins, or a human-in-the-loop element — is a recognised
+Phase 3 priority, not an MVP feature.
+
+---
+
+## 13. Design principles — agency over anxiety
+
+CareerPilot's core mechanic — a re-runnable exposure score — carries a real
+risk: it can drift into anxiety-monitoring, where a user refreshes a worrying
+number instead of building toward something. For the mid-career user this
+would be actively harmful, and for the product it would destroy retention.
+These principles are binding on the assessment and dashboard UI.
+
+1. **The dashboard leads with progress, not risk.** The first thing a user
+   sees on `/dashboard` is plan progress, streak, and next action — not the
+   exposure score. The score is reachable, not foregrounded.
+
+2. **The assessment screen leads with agency.** On `/onboard/assessment`,
+   present in this order: what is defensible in the role, then the factor
+   breakdown, then the three scores, then the constructive path. The "still
+   yours" content comes before the headline number.
+
+3. **The score is a starting line, not a verdict.** `scoreToday` and
+   `scoreProjected` are never shown alone — always paired with `scoreWithPlan`
+   and `defensibleTasks` on the same screen.
+
+4. **Re-runs show movement, not just status.** When the assessment is re-run
+   later, the UI emphasises the change since the previous run — the trend —
+   so the user sees progress, not a fresh judgment.
+
+5. **Every assessment is recorded.** Each run writes a `RiskAssessment` row
+   with a timestamp. This is non-negotiable: the longitudinal record is both
+   the user's proof of progress and, in aggregate, the product's most valuable
+   long-term asset.
+
+6. **The factor breakdown is shown, not hidden.** The assessment screen
+   displays all five factors. High-exposure factors are framed as focus areas;
+   low ones are framed explicitly as the user's human advantage.
 
 ---
 
