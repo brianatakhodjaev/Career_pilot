@@ -1,0 +1,97 @@
+// CareerPilot Prisma schema. See docs/kickoff.md §8.
+// Datasource URL is supplied via prisma.config.ts → process.env.DATABASE_URL.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../app/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model UserProfile {
+  id          String           @id @default(cuid())
+  userId      String           @unique
+  profileType String // veteran | threatened | starter
+  linkedInUrl String?
+  resumeText  String?
+  answers     Json // questionnaire answers
+  createdAt   DateTime         @default(now())
+  plans       CareerPlan[]
+  assessments RiskAssessment[]
+}
+
+model RiskAssessment {
+  id              String      @id @default(cuid())
+  userId          String
+  occupationLabel String
+  scoreToday      Int
+  scoreProjected  Int
+  scoreWithPlan   Int
+  exposedTasks    String[]
+  defensibleTasks String[]
+  reasoning       String
+  createdAt       DateTime    @default(now())
+  profile         UserProfile @relation(fields: [userId], references: [userId])
+}
+
+model CareerPlan {
+  id            String            @id @default(cuid())
+  userId        String
+  title         String
+  trackType     String // consultant | builder | strategist | educator | expert
+  matchScore    Int
+  isActive      Boolean           @default(false)
+  durationWeeks Int
+  hoursPerWeek  Int
+  description   String
+  planData      Json
+  createdAt     DateTime          @default(now())
+  profile       UserProfile       @relation(fields: [userId], references: [userId])
+  phases        PlanPhase[]
+  sessions      LearningSession[]
+}
+
+model PlanPhase {
+  id         String         @id @default(cuid())
+  planId     String
+  weekNumber Int
+  title      String
+  objectives String[]
+  plan       CareerPlan     @relation(fields: [planId], references: [id])
+  tasks      LearningTask[]
+}
+
+model LearningTask {
+  id               String    @id @default(cuid())
+  phaseId          String
+  title            String
+  type             String // reading | practice | project | experiment
+  estimatedMinutes Int
+  resourceUrl      String?
+  completedAt      DateTime?
+  phase            PlanPhase @relation(fields: [phaseId], references: [id])
+}
+
+model LearningSession {
+  id          String     @id @default(cuid())
+  planId      String
+  userId      String
+  startedAt   DateTime
+  endedAt     DateTime?
+  durationMin Int?
+  notes       String?
+  toolsUsed   String[]
+  plan        CareerPlan @relation(fields: [planId], references: [id])
+}
+
+model UserProgress {
+  id             String    @id @default(cuid())
+  userId         String    @unique
+  currentStreak  Int       @default(0)
+  longestStreak  Int       @default(0)
+  lastActiveDate DateTime?
+  totalMinutes   Int       @default(0)
+  skillsLogged   Int       @default(0)
+}

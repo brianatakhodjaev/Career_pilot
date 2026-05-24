@@ -44,8 +44,8 @@ destiny.**
 
 ## 3. Architecture — decisions already made, do not re-litigate
 
-- **Web app:** Next.js 15 (App Router), Tailwind CSS, deployed on Vercel.
-  This is the PRIMARY platform — the full learning and working experience.
+- **Web app:** Next.js 16 (App Router, Turbopack), Tailwind CSS v4, deployed on
+  Vercel. This is the PRIMARY platform — the full learning and working experience.
 - **Mobile app:** Expo React Native — companion only, **Phase 2**. Do NOT build
   in Phase 1.
 - **Database:** Neon PostgreSQL via Prisma ORM.
@@ -243,7 +243,7 @@ model UserProfile {
 }
 
 model RiskAssessment {
-  id              String   @id @default(cuid())
+  id              String      @id @default(cuid())
   userId          String
   occupationLabel String
   scoreToday      Int
@@ -252,7 +252,8 @@ model RiskAssessment {
   exposedTasks    String[]
   defensibleTasks String[]
   reasoning       String
-  createdAt       DateTime @default(now())
+  createdAt       DateTime    @default(now())
+  profile         UserProfile @relation(fields: [userId], references: [userId])
 }
 
 model CareerPlan {
@@ -267,6 +268,7 @@ model CareerPlan {
   description   String
   planData      Json
   createdAt     DateTime          @default(now())
+  profile       UserProfile       @relation(fields: [userId], references: [userId])
   phases        PlanPhase[]
   sessions      LearningSession[]
 }
