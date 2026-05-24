@@ -45,3 +45,8 @@ next-env.d.ts
 
 
 /app/generated/prisma
+
+# out-of-repo business documents (kept alongside the working tree, not versioned)
+CareerPilot_Business_Brief.docx
+CareerPilot_Business_Brief.pdf
+CareerPilot_Investment_Summary.docx

@@ -49,7 +49,8 @@ destiny.**
 - **Mobile app:** Expo React Native — companion only, **Phase 2**. Do NOT build
   in Phase 1.
 - **Database:** Neon PostgreSQL via Prisma ORM.
-- **Auth:** NextAuth v5 (email/password + Google).
+- **Auth:** NextAuth v5. Phase 1 ships email/password only; Google sign-in
+  is deferred to a later phase.
 - **AI:** Anthropic Claude API, model `claude-sonnet-4-20250514`. Used for
   (1) the exposure assessment, (2) plan generation, and later (3) coaching and
   trend surfacing.
@@ -335,7 +336,7 @@ Run `npx prisma migrate dev` after adding these.
 
 ## 10. Phase 1 MVP — build ONLY this
 
-1. Auth — NextAuth v5, email/password + Google.
+1. Auth — NextAuth v5, email/password (Google deferred to a later phase).
 2. Onboarding — all 6 pages in section 4, in flow order.
 3. The 5-question questionnaire (section 5).
 4. Exposure assessment — `/api/assess-exposure` + `/onboard/assessment` page
@@ -352,7 +353,8 @@ Run `npx prisma migrate dev` after adding these.
 1. Read `package.json` and any existing structure; confirm a clean Next.js 15
    App Router project.
 2. Add the Prisma models from section 8; run the migration.
-3. Set up NextAuth v5 with email/password + Google.
+3. Set up NextAuth v5 with email/password. Google sign-in is deferred to
+   a later phase.
 4. Build `/onboard/profile` — three large clickable cards (icon, title, two-line
    description) for veteran / threatened / starter.
 5. Build `/onboard/questions` — progress bar, 5 questions one per screen,
