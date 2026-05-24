@@ -350,22 +350,26 @@ Run `npx prisma migrate dev` after adding these.
 
 ## 11. Build first tasks — in order
 
-1. Read `package.json` and any existing structure; confirm a clean Next.js 15
+1. Read `package.json` and any existing structure; confirm a clean Next.js 16
    App Router project.
 2. Add the Prisma models from section 8; run the migration.
 3. Set up NextAuth v5 with email/password. Google sign-in is deferred to
    a later phase.
-4. Build `/onboard/profile` — three large clickable cards (icon, title, two-line
+4. Build `/signup` and `/login` pages — credentials forms. `/signup` POSTs to
+   `/api/auth/signup` then auto-`signIn`s on success; `/login` calls NextAuth's
+   `signIn` against the credentials provider. Both redirect to
+   `/onboard/profile` on success and show inline errors on failure.
+5. Build `/onboard/profile` — three large clickable cards (icon, title, two-line
    description) for veteran / threatened / starter.
-5. Build `/onboard/questions` — progress bar, 5 questions one per screen,
+6. Build `/onboard/questions` — progress bar, 5 questions one per screen,
    back/next, answers held in state.
-6. Build `POST /api/assess-exposure` using the section 6 spec.
-7. Build `/onboard/assessment` — three score gauges, exposed vs defensible task
+7. Build `POST /api/assess-exposure` using the section 6 spec.
+8. Build `/onboard/assessment` — three score gauges, exposed vs defensible task
    columns, the "exposure is not destiny" reframe box.
-8. Build `POST /api/generate-plans` using the section 7 spec.
-9. Build `/onboard/plans` — 3 plan cards (match score, timeline, effort, tags,
-   description); user taps one; confirm writes the chosen plan to the DB.
-10. Build `/dashboard` — task checklist, three stat cards, session timer.
+9. Build `POST /api/generate-plans` using the section 7 spec.
+10. Build `/onboard/plans` — 3 plan cards (match score, timeline, effort, tags,
+    description); user taps one; confirm writes the chosen plan to the DB.
+11. Build `/dashboard` — task checklist, three stat cards, session timer.
 
 ---
 
