@@ -1,56 +1,79 @@
-# CareerPilot Buffet — Unit Template + Unit 01
+# CareerPilot Buffet — Unit Template v2 + Unit 01 v2
 
-> This document does four things:
-> - **Part A** defines the reusable structure every buffet unit follows.
-> - **Part B** is Unit 01, fully built, as the working template.
-> - **Part C** is the plain-English "what you're approving" note for the
->   product owner.
-> - **Part D** is the cross-model critique prompt to pressure-test it.
+> Revision after cross-model critique (Gemini + ChatGPT). Both models
+> independently converged on the same fixes; this version folds in the ones
+> that are cheap and high-value, and records the ones deliberately deferred.
 >
-> Once Unit 01 is approved, the remaining v1 units follow the Part A
-> structure, and the finished set becomes the spine of Amendment 3.
+> - Part A — the unit template, v2 (now specifies exercise-format variety)
+> - Part B — Unit 01, v2 (rebuilt with the critique fixes)
+> - Part C — what changed and why, plus what was deferred
+> - Part D — the cross-model critique prompt (unchanged, for future units)
 
 ---
 
-## Part A — The buffet unit structure
+## Part A — The buffet unit structure (v2)
 
-Every buffet unit has these fields. This becomes the data shape Amendment 3
-models in the schema, and the content shape the app renders.
+Every unit follows this structure. Change from v1: the `exerciseFormat` field
+is new and explicit, because both critiques warned that the *same* exercise
+shape repeated across 10–12 units will feel mechanical and crater completion.
 
 | Field | What it holds |
 |---|---|
-| `unitNumber` | Order in the library (1, 2, 3…) |
+| `unitNumber` | Order in the library |
 | `title` | Short, plain, inviting |
-| `skill` | One line: what the user can DO after this unit |
-| `timeMinutes` | Total time, target 15–30 |
+| `skill` | One line: what the user can DO after the unit |
+| `timeRange` | A RANGE, e.g. "15–30 min" — never a single precise number |
 | `tier` | Foundation / Applied / Build |
-| `prerequisites` | Unit numbers that should come first, or none |
-| `whyThisMatters` | The hook — why this is worth 25 minutes, in work terms |
-| `teaching` | The actual content — 3 to 6 concrete ideas, kept short |
-| `exercise` | One concrete hands-on task, done in a real tool, ~15 min |
-| `successCheck` | How the user knows it worked — a self-check, not a quiz |
-| `tools` | Best-in-class options, tool-neutral, none pushed |
-| `goingDeeper` | Optional pointer for "when you have time" — usually a later unit |
+| `prerequisites` | Earlier units that should come first, or none |
+| `whyThisMatters` | Why the unit is worth the time, in work terms |
+| `teaching` | 3–6 concrete ideas — each must be genuinely distinct |
+| `exerciseFormat` | Which format this unit uses (see the set below) |
+| `exercise` | The hands-on task itself, ~15 min, scaffolded |
+| `reflection` | A 60-second closing prompt — turns doing into a habit |
+| `successCheck` | How the user knows it worked |
+| `tools` | Best-in-class options, tool-neutral |
+| `goingDeeper` | Optional pointer for "when you have time" |
 
-Design rules for every unit:
-- Total time 15–30 minutes — must fit into a real day, in one sitting.
-- The exercise uses the user's OWN real work wherever possible, not a canned
-  sample — this is what makes it feel personal and immediately useful.
-- Tools are named by genuine merit, plural, vendor-neutral. The unit teaches
-  the skill; tools are interchangeable instruments.
-- Tone: a practical, capable peer. Not academic, not salesy, not alarmist.
+### The exercise-format set
+
+A unit picks ONE format. Rotating formats across the library keeps it from
+feeling formulaic. The starting set:
+
+- **Compare** — do a task two ways, see the contrast. (Unit 01 uses this.)
+- **Fix the broken one** — given a weak prompt/workflow, diagnose and improve it.
+- **Transform** — convert messy input into structured output.
+- **Spot the error** — find where AI output went wrong and why.
+- **Guided build** — a small sandbox project with steps.
+- **Audit** — examine your own real workflow against a checklist.
+
+### Design rules (v2)
+
+- Total time is a RANGE, not a precise claim. The exercise genuinely varies
+  by user; "25 minutes" overpromises. Use "15–30 minutes depending on your
+  task."
+- The exercise must be **scaffolded** — supply ready-made sample material so a
+  user cannot fail the unit by picking a poor task. Confident users may
+  substitute their own.
+- The exercise must NEVER require pasting confidential or proprietary
+  information into a public AI tool. Either supply non-confidential sample
+  material, or explicitly instruct the user to anonymise. This is a hard rule.
+- Every unit ends with a short reflection step, to convert completion into a
+  workplace habit.
+- Teaching points must be genuinely distinct ideas, not one idea restated.
+- Tone: a practical, capable peer. Tool-neutral throughout.
 
 ---
 
-## Part B — UNIT 01 (fully built)
+## Part B — UNIT 01 v2 (fully built)
 
 ```
 unitNumber: 1
 title: Working with AI assistants well
 skill: Get genuinely useful output from an AI assistant by briefing it
-       properly — instead of vague questions and mediocre answers.
-timeMinutes: 25
+       properly — and know when not to trust what it gives you back.
+timeRange: 15–30 minutes depending on your task
 tier: Foundation
+exerciseFormat: Compare
 prerequisites: none — this is the starting point
 ```
 
@@ -63,149 +86,168 @@ they would brief a capable new colleague. Same tool, completely different
 results.
 
 The gap between those two is not intelligence, seniority, or technical skill.
-It is knowing how to ask. This is the most leveraged 25 minutes in the whole
-curriculum: every other AI skill — writing, analysis, automation — depends on
-being able to communicate with the tool. Get this right and everything that
-follows gets easier.
+It is knowing how to ask. (And it is normal to start with vague prompts —
+search engines trained all of us to type three words and hit enter. This is a
+different interaction style, and it is learnable.) This is the most leveraged
+half-hour in the whole curriculum: every other AI skill depends on being able
+to communicate with the tool.
 
 ### The teaching — five things that change your output
 
-**1. Context is everything.** The AI knows nothing about your situation, your
-company, your audience, or your goal unless you tell it. A vague request gets
-a generic answer because you gave it nothing to work with. Before the request,
-state who it is for, what you are trying to achieve, and any constraints that
-matter.
+**1. Context.** The AI knows nothing about your situation, company, audience,
+or goal unless you tell it. State who the output is for, what you are trying
+to achieve, and any constraints that matter.
 
-**2. Say what "good" looks like.** "Write a project update" could mean
-anything. "Write a 150-word project update for my manager — factual tone, lead
-with status, then flag the two risks" gives the AI a target. Specify format,
-length, tone, and audience.
+**2. Define "good."** "Write a project update" could mean anything. "Write a
+150-word update for my manager — factual tone, lead with status, then flag two
+risks" gives a target. Specify format, length, tone, and audience.
 
-**3. Show an example when you have one.** If you have a past email, a
-document, or a sample in the style you want, paste it in and say "match this."
-AI is exceptionally good at matching a pattern — one good example often beats
-three paragraphs of instructions.
+**3. Show an example.** If you have a past document in the style you want,
+paste it and say "match this." AI is exceptional at matching a pattern — one
+good example often beats three paragraphs of instruction.
 
-**4. Treat it as a conversation, not a vending machine.** The first answer is
-a draft, not a delivery. The real value is in the next two turns: "make it
-shorter," "too formal," "you missed the budget point." People who get great
-results are not writing perfect first prompts — they are iterating quickly.
+**4. Iterate.** The first answer is a draft. The real value is in the next two
+turns: "shorter," "less formal," "you missed the budget point." Great results
+come from iterating, not from one perfect prompt.
 
-**5. Give it a role.** Starting with "You are an experienced [financial
-analyst / recruiter / editor]" measurably shifts the output toward that
-perspective. A small move with an outsized effect.
+**5. Verify — the brakes.** AI output is persuasive, not automatically
+correct. It can state wrong facts and invented numbers with total confidence.
+Treat it as a fast draft partner, not a final authority — especially for
+facts, figures, legal or compliance points, and anything company-specific.
+Always check before you rely on it. (The full skill of verifying and bounding
+AI output is Unit 07 — this is the one sentence you need until then.)
 
 ### The exercise — the same task, two ways (~15 minutes)
 
-Pick one real task from your actual work this week — a real email you need to
-send, a summary you need to write, a piece of analysis you need to think
-through. Not a made-up task; something you genuinely have to do.
+You will run one task two ways and feel the difference yourself.
 
-**Round 1 — the way you would normally do it.** Open your AI assistant and
-prompt it the quick way: a short, vague request, the way most people would.
-Read the result. Keep it.
+**First — a privacy note.** Do not paste confidential or proprietary
+information — client names, real financials, internal documents — into a
+public AI tool. To keep this safe, pick one of the three ready-made tasks
+below. (If you would rather use a real task of your own, that is fine — just
+strip out anything proprietary first.)
 
-**Round 2 — brief it properly.** Start a fresh conversation. This time:
-- give it a role ("You are an experienced…")
-- give it context (who it is for, what you are trying to achieve, constraints)
-- say what good looks like (format, length, tone)
-- paste an example if you have one
+Pick the track closest to your work:
 
-Then read the first draft and iterate at least twice — refine it with
-follow-up instructions until it is genuinely usable.
+- **Admin / operations:** Draft a clear out-of-office email policy for a
+  10-person team.
+- **Management:** Write an outline for constructive performance feedback for a
+  team member who is strong technically but misses deadlines.
+- **Sales / client-facing:** Prepare a short briefing note for a first call
+  with a prospective client in an industry you choose.
+
+**Round 1 — the quick way.** Open your AI assistant. Prompt it the way most
+people would — a short, vague request. Read the result. Keep it.
+
+**Round 2 — brief it properly.** Start a fresh conversation. This time apply
+the teaching: give it a role, give it context, define what good looks like,
+and iterate at least twice on the draft.
 
 Put the two outputs side by side.
 
+### Reflection — 60 seconds before you close
+
+Answer these for yourself — this is what turns a one-off exercise into a habit:
+
+- What one detail improved the Round 2 output the most?
+- What will you now always include when you ask an AI for something?
+- Which task on your real plate this week could you run this way?
+
 ### How you will know it worked
 
-Two signs. First: the Round 2 output is something you could actually use with
-light editing, while Round 1 would need a real rewrite. Second, and more
-important: you can name the specific things you added in Round 2 that made the
-difference. If you can articulate them, you can repeat them tomorrow.
+The Round 2 output is something you could use with light editing, while
+Round 1 would need a real rewrite — and you can name the specific things you
+added that made the difference. If you can name them, you can repeat them.
 
 ### Tools for this unit
 
-This skill works the same way across all the major AI assistants — use
-whichever you already have:
-- ChatGPT (OpenAI)
-- Claude (Anthropic)
-- Gemini (Google)
-- Microsoft Copilot
+Works the same across all major AI assistants — use whichever you have:
+ChatGPT (OpenAI), Claude (Anthropic), Gemini (Google), Microsoft Copilot. No
+paid plan needed for this exercise. The skill transfers across all of them.
 
-A paid plan is not needed for this exercise. The skill transfers across all of
-them — that is the point. Do not get attached to one tool; get good at the
-skill.
+### Going deeper (optional)
 
-### Going deeper (optional — "when you have time")
-
-If you want the systematic version of this — repeatable prompt structures,
-using examples and step-by-step reasoning deliberately — that is Unit 02,
-Structured prompting. This unit builds the instinct; Unit 02 builds the method.
+The systematic version of briefing — repeatable structures, deliberate use of
+examples and step-by-step reasoning — is Unit 02, Structured prompting. The
+skill of checking and bounding AI output is Unit 07, Judgment and verification.
 
 ---
 
-## Part C — What you're approving (plain-English note)
+## Part C — What changed in v2, and what was deferred
 
-You do not yet need to be an AI expert to sign off on this unit. Here are the
-decisions baked into it — judge these, not the technical content:
+### Changed (both critiques agreed; fixes are cheap and high-value)
 
-1. **Length — about 25 minutes** (roughly 7–8 minutes reading, ~15 minutes
-   exercise). Inside the 15–30 target. Doable in one sitting.
+1. **Verification added.** Teaching point 5 is new — AI output is persuasive,
+   not reliable — with a forward-reference to Unit 07. Both models called this
+   the most serious omission ("a sports car without brakes").
 
-2. **Placement — Foundation, core for every user.** Every user gets this
-   regardless of profile, because no other AI skill works without it. This
-   unit has no prerequisites and is everyone's unit 1.
+2. **Privacy trap fixed.** The exercise no longer tells a corporate user to
+   paste real work into a public AI tool — both models flagged this as a
+   genuine, fireable data risk. The unit now supplies non-confidential sample
+   tasks and explicitly says to anonymise if using your own.
 
-3. **The exercise uses the user's own real work**, not a supplied sample task.
-   Deliberate tradeoff: it makes the unit personal and immediately useful — the
-   user finishes with a real work output in hand — but it asks slightly more of
-   them (they must pick a task). The design rule across the buffet favours this;
-   Unit 01 sets that precedent.
+3. **Exercise scaffolded.** "Pick any task" is replaced by three ready-made,
+   profession-flavoured tracks. This fixes the privacy issue AND the
+   under-scaffolding both models flagged — a user can no longer fail the unit
+   by choosing a weak task.
 
-4. **Tool-neutral.** Four assistants named, none recommended over the others.
-   Consistent with the "teach the skill, tools are interchangeable" principle.
+4. **Time claim softened.** "25 minutes" is now "15–30 minutes depending on
+   your task." Both critiques said the exercise realistically runs longer for
+   cautious beginners; honest range beats a precise overpromise.
 
-5. **Five teaching points.** Enough to be substantive, few enough to read fast.
-   If field-testing shows it runs long, point 5 (roles) is the most cuttable.
+5. **Reflection step added.** A 60-second closing prompt converts completion
+   into a workplace habit — both models noted the unit ended without a
+   transfer-to-habit loop.
 
-6. **Tone — a practical peer.** Not academic, not salesy, not fear-based.
+6. **Template updated (Part A).** New `exerciseFormat` field and a defined set
+   of six formats. Both models warned that one repeated exercise shape will
+   feel mechanical by Unit 03; the library must rotate formats.
 
-The one thing you are best placed to judge right now: does this *feel* like
-something you would actually do in a 25-minute gap instead of scrolling — and
-does it feel meaningfully better than a generic course? That is the bar.
+### Deliberately deferred (noted, not actioned)
+
+1. **In-app interactive workspace.** Both critiques pushed for a prompt-builder
+   and side-by-side comparison built INTO CareerPilot, calling it what makes
+   this "a product, not a YouTube video." The diagnosis is fair — but this is
+   a significant feature, not a unit edit, and building it now would balloon
+   the MVP. It is a strong Phase 2 candidate. Recorded, not built.
+
+2. **Workflow-transformation depth.** Gemini's deepest point: the curriculum
+   must teach "how professionals redesign work with AI," not just "how to
+   prompt." This is correct — but it is guidance for the LATER units (workflow
+   opportunities, automation, agents, building), not a fix to Unit 01. Unit 01
+   is correctly the on-ramp; the differentiation lives in units 04, 08, 09, 10.
+   Carried forward as a curriculum-design principle for Amendment 3.
 
 ---
 
-## Part D — Cross-model critique prompt
+## Part D — Cross-model critique prompt (for future units)
 
-Paste the prompt below, plus Part B (Unit 01), into ChatGPT and/or Gemini.
-Bring the critiques back for review.
+Reuse this for Units 02–10. Paste the prompt plus the unit being reviewed into
+ChatGPT and/or Gemini.
 
 ```
 I'm building a micro-learning curriculum that teaches working professionals
-practical AI skills. Below is one unit. It is designed to take a user about
-25 minutes total (reading plus a hands-on exercise) and to fit into a normal
-workday — short and practical, not a long course.
+practical AI skills. Below is one unit, designed to take 15–30 minutes
+(reading plus a hands-on exercise) and to fit into a normal workday.
 
-Critique it specifically on these points:
+Critique it specifically on:
+1. Accuracy — is the teaching correct and current as of today?
+2. Completeness — anything important missing, or anything not worth the space?
+3. The exercise — does it genuinely teach the skill? Is it well scaffolded?
+   Does it avoid asking the user to expose confidential information?
+4. Tools — right best-in-class set, tool-neutral handled well?
+5. Time — is the stated range realistic?
+6. Audience fit — right for a non-technical mid-career professional who is a
+   beginner at deliberate AI use but not a computer novice?
+7. Differentiation — is this meaningfully better than a free article or video?
 
-1. Accuracy — is the teaching content correct and current as of today?
-2. Completeness — is anything important about this skill missing? Is anything
-   included that is not worth the space in a 25-minute unit?
-3. The exercise — is it genuinely effective for learning this skill? Would a
-   different exercise teach it better?
-4. Tools — are the named tools the right best-in-class set right now? Is
-   anything missing or outdated?
-5. Time — is 25 minutes realistic for this content?
-6. Tone and level — is it pitched right for a non-technical professional who
-   is not a beginner with computers but is a beginner with deliberate AI use?
+Be specific and critical. I want gaps, not reassurance. Do not rewrite the
+unit — tell me what to change and why.
 
-Be specific and critical. I want gaps and weaknesses, not reassurance. Do not
-rewrite the unit — tell me what to change and why, so I can decide.
-
-[paste Unit 01 here]
+[paste the unit here]
 ```
 
 ---
 
-*Unit 01 — template build. Once approved, Units 02–10 follow Part A.*
+*Unit 01 v2 — revised after cross-model review. Once approved, Units 02–10
+follow the Part A v2 template, rotating exercise formats.*
