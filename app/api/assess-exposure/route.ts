@@ -33,15 +33,15 @@ const RequestSchema = z.object({
 
 const FactorSchema = z.object({
   label: z.enum(FIVE_FACTOR_LABELS),
-  score: z.number().min(0).max(10),
+  score: z.number().int().min(0).max(10),
   note: z.string().min(1),
 });
 
 const AssessmentSchema = z.object({
   occupationLabel: z.string().min(1),
-  scoreToday: z.number().min(0).max(10),
-  scoreProjected: z.number().min(0).max(10),
-  scoreWithPlan: z.number().min(0).max(10),
+  scoreToday: z.number().int().min(0).max(10),
+  scoreProjected: z.number().int().min(0).max(10),
+  scoreWithPlan: z.number().int().min(0).max(10),
   factors: z.array(FactorSchema).length(5),
   exposedTasks: z.array(z.string().min(1)).min(3).max(4),
   defensibleTasks: z.array(z.string().min(1)).min(3).max(4),

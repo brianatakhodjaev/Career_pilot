@@ -57,9 +57,9 @@ supported; they are simply not the tuning target for v1.
 - **Database:** Neon PostgreSQL via Prisma ORM.
 - **Auth:** NextAuth v5. Phase 1 ships email/password only; Google sign-in
   is deferred to a later phase.
-- **AI:** Anthropic Claude API, model `claude-sonnet-4-20250514`. Used for
-  (1) the exposure assessment, (2) plan generation, and later (3) coaching and
-  trend surfacing.
+- **AI:** Anthropic Claude API, model `claude-sonnet-4-6` (pinned snapshot,
+  not an alias). Used for (1) the exposure assessment, (2) plan generation,
+  and later (3) coaching and trend surfacing.
 - **Billing:** Stripe — **Phase 3 only**. Do NOT build in Phase 1.
 - **Email:** Resend — Phase 3.
 
@@ -184,6 +184,10 @@ Your score is an evidence-based estimate, not an exact measurement. Do not
 imply false precision. The factor breakdown must make the score explainable:
 the user should understand WHY they scored as they did.
 
+All scores — scoreToday, scoreProjected, scoreWithPlan, and each factor
+score — MUST be whole-number integers from 0 to 10 inclusive. Do not use
+decimals.
+
 Score these five fixed factors, each 0-10, where 10 means AI can already
 perform most of that dimension of the user's work:
 - "Routine and repeatable tasks"
@@ -192,6 +196,10 @@ perform most of that dimension of the user's work:
 - "Relationship and trust dependence"
 - "Physical and on-site work"
 For each factor, give a one-sentence note explaining that score for THIS user.
+
+exposedTasks MUST contain exactly 3 to 4 items — the user's tasks most
+exposed to AI automation. defensibleTasks MUST contain exactly 3 to 4 items
+— tasks that remain genuinely human. Do not exceed 4 items in either array.
 
 Return ONLY valid JSON, no markdown, with this structure:
 {
