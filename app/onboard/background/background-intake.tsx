@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import type { ProfileId } from "@/lib/profiles";
 
 const STORAGE_KEY = "careerpilot:onboarding";
@@ -70,7 +71,7 @@ export function BackgroundIntake({ profile }: BackgroundIntakeProps) {
 
   return (
     <main className="flex min-h-screen items-center justify-center px-4 py-12">
-      <div className="w-full max-w-2xl">
+      <div className="w-full max-w-xl">
         <h1 className="text-2xl font-semibold tracking-tight">
           Tell us about your work
         </h1>
@@ -80,7 +81,17 @@ export function BackgroundIntake({ profile }: BackgroundIntakeProps) {
           share, the sharper your assessment.
         </p>
 
-        <form onSubmit={handleSubmit} className="mt-8" noValidate>
+        <p className="mt-4 text-xs text-gray-500">
+          We use this only to generate your assessment.{" "}
+          <Link
+            href="/privacy"
+            className="underline underline-offset-2 hover:no-underline"
+          >
+            How we handle your data
+          </Link>
+        </p>
+
+        <form onSubmit={handleSubmit} className="mt-6" noValidate>
           <label htmlFor="background" className="sr-only">
             Your background
           </label>
@@ -88,8 +99,8 @@ export function BackgroundIntake({ profile }: BackgroundIntakeProps) {
             id="background"
             value={background}
             onChange={(e) => setBackground(e.target.value)}
-            rows={10}
-            placeholder="Paste pasted text here. Links can't be read — LinkedIn blocks scraping and we can't fetch arbitrary URLs."
+            rows={14}
+            placeholder="Paste your text here."
             className="w-full resize-y rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-black focus:outline-none focus:ring-1 focus:ring-black"
             aria-describedby="background-hint"
           />
