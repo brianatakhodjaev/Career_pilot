@@ -2,8 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { Compass, RefreshCw, Sparkles, type LucideIcon } from "lucide-react";
-
-type ProfileId = "veteran" | "threatened" | "starter";
+import type { ProfileId } from "@/lib/profiles";
 
 interface Persona {
   id: ProfileId;
@@ -12,26 +11,30 @@ interface Persona {
   Icon: LucideIcon;
 }
 
+// Display titles are deliberately softened from the spec's internal persona
+// names (Veteran/Threatened/Starter). Per §13 design principles, labelling a
+// user as "Threatened" on the first screen of the product is fear-forward;
+// the internal id stays "threatened" so URL/DB/API are unchanged.
 const personas: Persona[] = [
   {
     id: "veteran",
     title: "Veteran",
     description:
-      "Decades of domain expertise. You want to redirect toward consulting or an AI-fluent version of your work.",
+      "Decades of domain expertise. Redirecting toward consulting or an AI-fluent version of your work.",
     Icon: Compass,
   },
   {
     id: "threatened",
-    title: "Threatened",
+    title: "Pivoting",
     description:
-      "Your current role is being reshaped by AI. You want a defensive but ambitious pivot.",
+      "Mid-career, with your role being reshaped by AI. Choosing a defensible, AI-fluent next move.",
     Icon: RefreshCw,
   },
   {
     id: "starter",
-    title: "Starter",
+    title: "Starting out",
     description:
-      "Entering a job market that AI has already changed. You want direction.",
+      "Entering a job market that AI has already changed. Picking a direction before you settle in.",
     Icon: Sparkles,
   },
 ];
