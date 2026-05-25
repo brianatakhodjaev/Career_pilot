@@ -11,19 +11,26 @@
 
 CareerPilot helps non-technical professionals realign their careers for the
 AI era. It is **not** a chatbot and **not** a course catalog. It works like a
-fitness app for your career: an honest assessment of where you stand, a
-personalized plan to improve, daily progress tracking, and content that adapts
-as both the user and the job market change.
+fitness app for your career: an honest baseline of where you stand, a
+personalized in-house curriculum to improve, daily progress tracking, and a
+curriculum that adapts as both the user and the job market change.
+
+CareerPilot is **curriculum-led** (per Amendment 3). The exposure assessment
+is the intake that aims the curriculum; the personalized in-house learning
+curriculum is the product. Everything the user returns for — daily tasks,
+progress, growth — lives in the curriculum.
 
 The app has four jobs, in order:
 
-1. **Assess** — give the user an honest, evidence-based assessment of how
-   exposed their current role is to AI automation. The goal is a clear
-   baseline, never to frighten.
-2. **Plan** — show how that position can be improved through a concrete,
-   personalized training plan.
-3. **Supply** — as training progresses, deliver educational content matched to
-   the user's specific career-redevelopment path.
+1. **Assess** — the diagnostic intake. Give the user an honest, evidence-based
+   assessment of how exposed their current role is to AI automation. The goal
+   is a clear baseline that aims the curriculum, never to frighten.
+2. **Plan** — assemble a personalized curriculum (the user's "plate") from the
+   in-house learning buffet (§14), tagged and rationalised per user, paced to
+   their stated weekly time.
+3. **Supply** — deliver the curriculum's units as daily, actionable practice.
+   Content is authored in-house (see §14), not curated from external course
+   platforms.
 4. **Direct** — surface emerging job-market trends and new roles the user could
    realistically move toward.
 
@@ -287,6 +294,29 @@ Questionnaire answers: {JSON.stringify(answers)}.
 
 ## 7. Plan generation
 
+### Selector approach (post-Amendment 3)
+
+The plan-generation call is the curriculum **selector** (§14.2). It does NOT
+invent learning content. Instead, given the buffet, it marks it up for this
+user:
+
+- It receives the full buffet — the list of available units with their
+  metadata — alongside the user's profile, questionnaire answers, assessment,
+  and background.
+- For each buffet unit, it assigns a tag: `core` / `later` / `skip`.
+- It writes a one-line rationale per unit, tying that unit to the user's
+  goal.
+- It produces an ordering and a pacing (units per week) consistent with the
+  user's stated weekly time.
+- Unit content comes only from the buffet — never invented.
+
+The output is a marked-up menu (§14.2 / §11 step 11), not three invented
+plans. The "exactly 3 plans" structure is retired.
+
+The system prompt and JSON shape below are the legacy invention-mode prompt
+from pre-Amendment 3. They will be redrafted to selector mode when §11
+step 10 is rebuilt against this amendment.
+
 ### Claude API call — `POST /api/generate-plans`
 
 System prompt:
@@ -443,6 +473,41 @@ model UserProgress {
   totalMinutes   Int       @default(0)
   skillsLogged   Int       @default(0)
 }
+
+// ---------- Buffet models (post-Amendment 3) ----------
+// BuffetUnit is the library. PlateItem is one unit on one user's plate.
+// The exact relational adaptation of CareerPlan / PlanPhase / LearningTask
+// to this model is settled at build time — the principle is that a user's
+// curriculum is assembled from BuffetUnit via PlateItem, not from invented
+// LearningTask rows. See §14.
+
+model BuffetUnit {
+  id             String   @id @default(cuid())
+  unitNumber     Int      @unique
+  title          String
+  skill          String
+  tier           String // Foundation | Applied | Transformation
+  timeRangeMin   Int
+  timeRangeMax   Int
+  exerciseFormat String
+  content        Json // whyThisMatters, teaching, exercise, reflection, successCheck, tools, goingDeeper
+  version        Int      @default(1)
+  isPublished    Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model PlateItem {
+  id          String     @id @default(cuid())
+  userId      String
+  planId      String
+  unitId      String
+  tag         String // core | later | skip
+  rationale   String // the selector's one-line "why this helps you"
+  orderIndex  Int
+  completedAt DateTime?
+  plan        CareerPlan @relation(fields: [planId], references: [id])
+}
 ```
 
 Run `npx prisma migrate dev` after adding these.
@@ -506,24 +571,34 @@ copy, and field-test recruitment target the **Threatened** profile (mid-career,
    defensible content first, five-factor breakdown, three score gauges,
    exposed vs defensible task columns, and the constructive path including
    the §13 principle 7 refinement path. Must follow §13 design principles.
-10. Build `POST /api/generate-plans` using the section 7 spec.
-11. Build `/onboard/plans` — 3 plan cards (match score, timeline, effort, tags,
-    description). User taps one; selection is held in sessionStorage and the
-    flow proceeds to `/onboard/confirm`.
-12. Build `/onboard/confirm` — render the chosen plan in full (summary card +
-    phase-by-phase breakdown with objectives and tasks). On "Start this plan,"
-    POST to `/api/plans/confirm` which deactivates any prior active plan and
-    creates a new `CareerPlan` row (with nested `PlanPhase` and `LearningTask`
-    rows) marked `isActive: true`, then route to `/dashboard`.
-13. Build `/dashboard` — header (plan title + current week), three stat cards
-    (plan progress, day streak, minutes logged), today's task checklist
-    (all uncompleted tasks in the current phase, with completion toggle),
-    start/stop session timer, footer links to `/assessment` (latest read
-    from DB) and `/onboard/background` (refinement path, light touch).
-    The plan does not auto-start: a "Begin week 1" CTA sets
-    `CareerPlan.startedAt` on click and is the only thing rendered in the
-    task area until then (never show a user as "behind" before they begin).
-    Must follow §13 design principles, including principle 8 (streak rules).
+10. Build `POST /api/generate-plans` as the **selector** (§7 post-Amendment 3
+    / §14.2). Receives the buffet alongside profile / answers / assessment /
+    background; tags each `BuffetUnit` as `core` / `later` / `skip` with a
+    one-line rationale; produces an ordering and pacing. Does NOT invent
+    units. (Replaces the legacy three-plan invention prompt — that earlier
+    implementation is rewired under Amendment 3, not removed clean.)
+11. Build `/onboard/plans` as the **menu** screen (§14.2). Renders the
+    selector's marked-up buffet for the user — every unit shown with its
+    tag and rationale — and lets the user re-tag units (move between
+    `core` / `later` / `skip`) before committing. Replaces the legacy
+    three-card pick.
+12. Build `/onboard/confirm` — render the adjusted menu as the user's
+    **plate** (their active curriculum). Persist `CareerPlan` (the plate
+    container) + a `PlateItem` row per `BuffetUnit` selection (with tag,
+    rationale, and orderIndex from the selector, adjustable by the user).
+    Mark the plate `isActive: true`; deactivate any prior plate. Route to
+    `/dashboard`.
+13. Build `/dashboard` — header (plate title + current week), three stat
+    cards (plate progress, day streak, minutes logged), today's task area
+    (current `PlateItem` rows / current buffet unit, with completion
+    toggle at the unit level), start/stop session timer, footer links to
+    `/assessment` (latest read from DB) and `/onboard/background`
+    (refinement path, light touch). The plate does not auto-start: a
+    "Begin week 1" CTA sets `CareerPlan.startedAt` on click and is the
+    only thing rendered in the task area until then (never show a user as
+    "behind" before they begin — see also §13 principle 9). Must follow
+    §13 design principles, including principles 8 and 9 (streak rules
+    and curriculum re-pacing).
 
 ---
 
@@ -532,20 +607,25 @@ copy, and field-test recruitment target the **Threatened** profile (mid-career,
 - Stripe billing (Phase 3)
 - Mobile / Expo app (Phase 2)
 - Email notifications (Phase 3)
-- Educational content feed — app job #3 (Phase 3)
 - Job-market trends and opportunity matching — app job #4 (Phase 3)
 - Re-runnable assessment trend charts (Phase 3 — schema already supports it via
   multiple `RiskAssessment` rows per user)
 - Admin panel
+- Buffet "living library" features: in-app notifications when a relevant new
+  unit is added; user-facing add-to-plate from notifications. (The schema
+  supports versioned, dated, addable units from the start — see §14.6 — but
+  the notification UX is Phase 2/3.)
 
-Phase 1 delivers app jobs #1 (assess) and #2 (plan). Jobs #3 (supply content)
-and #4 (direct toward trends) come in Phase 3, once real users are active.
+Phase 1 delivers app jobs #1 (assess), #2 (plan), and #3 (supply) — the last
+via the in-house learning buffet (§14), seeded with Unit 01 and expanded
+unit-by-unit as authoring and cross-model review complete. Job #4 (direct
+toward trends) remains a Phase 3 deferred feature.
 
-**Content layer (app job #3, Phase 3).** When built, the educational content
-layer curates and links to existing external learning resources, matched to
-the user's plan. CareerPilot is an orchestration and personalization layer —
-it does not produce or host its own course library. This keeps the model
-scalable and avoids becoming a full education provider.
+**Content layer (app job #3).** The educational content layer is CareerPilot's
+in-house learning buffet (§14) — short, authored micro-learning units, not
+links to external course platforms. CareerPilot is a micro-curriculum
+provider. It is not a course catalog and not a reseller of third-party
+courses.
 
 **Retention (Phase 3 priority).** Sustained retention past the initial
 motivation spike is the central operational risk for this category. Streaks
@@ -600,12 +680,147 @@ These principles are binding on the assessment and dashboard UI.
 
 8. **Streak rewards showing up, not hitting volume.** A day counts toward
    `UserProgress.currentStreak` if the user completes any `LearningTask` OR
-   logs a `LearningSession` of at least 10 minutes. A focused 25-minute
-   session that finishes no task must still keep the streak. The streak is
-   a "you came back" signal, not a "you produced" signal — and the
-   dashboard never shows a user as "behind" against a schedule they
-   haven't explicitly started (which is why `CareerPlan.startedAt` is set
-   by an explicit "Begin week 1" click, not by `createdAt`).
+   logs a `LearningSession` of at least 10 minutes. (Post-Amendment 3, the
+   completion signal is unit-level — a completed `PlateItem` — but the rule
+   is the same.) A focused 25-minute session that finishes no task must
+   still keep the streak. The streak is a "you came back" signal, not a
+   "you produced" signal — and the dashboard never shows a user as
+   "behind" against a schedule they haven't explicitly started (which is
+   why `CareerPlan.startedAt` is set by an explicit "Begin week 1" click,
+   not by `createdAt`).
+
+9. **The curriculum re-paces to the user, never shames them.** The plate is
+   paced to the user's stated weekly time and stretches to their real
+   calendar if they slow down. CareerPilot never shows a user as "behind"
+   — it re-times. The streak rewards showing up (a completed unit OR a
+   logged session of at least 10 minutes), not hitting a prescribed volume.
+
+---
+
+## 14. The learning buffet
+
+CareerPilot's curriculum is delivered through a curated, in-house library of
+short skill units — "the buffet." This section defines it.
+
+### 14.1 Principle
+
+The curriculum is not generated from scratch per user, and it is not a set of
+links to external courses. It is a fixed, curated library of authored
+micro-learning units. Personalization is curation made visible: every user
+sees the same library, marked up for them.
+
+### 14.2 The four layers
+
+1. **The buffet** — the curated library of skill units. Authored and
+   maintained in-house. The asset and the moat.
+2. **The selector** — an AI call (§7 post-Amendment 3) that, given the user's
+   background and assessment, tags each unit (`core` / `later` / `skip`) and
+   writes a one-line rationale per unit explaining how it helps THAT user
+   reach THEIR goal.
+3. **The menu** — what the user sees: the full library, marked up for them,
+   with rationale. The user can adjust the markup before committing.
+4. **The plate** — the curriculum the user commits to and tracks progress
+   through.
+
+### 14.3 Unit structure
+
+Every buffet unit has these fields:
+
+| Field | What it holds |
+|---|---|
+| `unitNumber` | Order in the library |
+| `title` | Short, plain, inviting |
+| `skill` | One line: what the user can DO after the unit |
+| `timeRange` | A range, e.g. "15–30 min" — never a single precise number |
+| `tier` | Foundation / Applied / Transformation |
+| `prerequisites` | Earlier units that should come first, or none |
+| `whyThisMatters` | Why the unit is worth the time, in work terms |
+| `teaching` | 3–6 genuinely distinct ideas, kept short |
+| `exerciseFormat` | Which exercise format this unit uses (see §14.4) |
+| `exercise` | The hands-on task, ~15 min, scaffolded |
+| `reflection` | A 60-second closing prompt — turns doing into a habit |
+| `successCheck` | How the user knows it worked |
+| `tools` | Best-in-class options, tool-neutral |
+| `goingDeeper` | Optional pointer, usually a later unit |
+
+### 14.4 Exercise formats
+
+A unit uses ONE format. Formats rotate across the library so it never feels
+formulaic. The starting set:
+
+- **Compare** — do a task two ways, see the contrast.
+- **Fix the broken one** — given a weak prompt/workflow, diagnose and improve it.
+- **Transform** — convert messy input into structured output.
+- **Spot the error** — find where AI output went wrong and why.
+- **Guided build** — a small sandbox project with steps.
+- **Audit** — examine your own real workflow against a checklist.
+
+### 14.5 Unit design rules
+
+- Total time is always a **range**, never a single precise number.
+- Every exercise is **scaffolded** — supply ready-made sample material so a
+  user cannot fail a unit by choosing a poor task. Confident users may
+  substitute their own.
+- No exercise may ever require pasting confidential or proprietary
+  information into a public AI tool. Either supply non-confidential samples,
+  or explicitly instruct the user to anonymise. **Hard rule.**
+- Every unit ends with a short reflection step.
+- Tone: a practical, capable peer. Tool-neutral throughout — units teach a
+  skill and name best-in-class tools as interchangeable options, never pushing
+  one vendor.
+
+### 14.6 The living buffet
+
+The buffet grows over time — new units added, tool recommendations refreshed.
+When a relevant unit is added, existing users are notified and can add it to
+their plate or mark it for later. The MVP ships a **static** buffet (the v1
+units in §14.7), maintained manually by the team; the notification-of-new-
+units capability is Phase 2/3. The schema must support versioned, dated,
+addable units from the start so this does not require re-migration later
+(`BuffetUnit.version`, `isPublished`, `updatedAt` per §8).
+
+### 14.7 The v1 buffet
+
+Ten units, three tiers. The centre of gravity is helping a user become more
+valuable in the job they already have, progressing from fluency toward
+genuine workflow transformation. Career-change content is a planned later
+buffet expansion, not part of v1.
+
+**FOUNDATION — get fluent**
+1. *Working with AI assistants well* — Briefing AI properly; knowing when not
+   to trust it. (Built — template; v2 lives at
+   `docs/proposals/buffet-unit-01.md` until seeded.)
+2. *Structured prompting* — Repeatable prompt structures: roles, examples,
+   step-by-step, format.
+3. *Using AI in your everyday work* — Applying AI inside the tools and
+   writing the user already does daily.
+
+**APPLIED — do real work better**
+4. *AI for analysis and thinking* — Restructuring, summarising, synthesising,
+   comparing — transformation work, not just generation.
+5. *Judgment and verification* — Checking AI output, knowing its failure
+   modes, bounding its use. Core, not optional — every user gets this.
+6. *Working alongside AI: delegation and judgment* — What to hand to AI, what
+   to keep human, where human judgment stays essential. The first true
+   "transformation" unit.
+
+**TRANSFORMATION — redesign how you work**
+7. *Spotting transformation opportunities in your work* — Auditing your own
+   week to find where AI changes the workflow itself.
+8. *Automating repetitive tasks* — Connecting tools and building simple
+   workflows, little to no code.
+9. *Understanding AI agents* — What agents are, what they can do, where they
+   are heading.
+10. *AI-assisted building* — Making simple tools by directing AI.
+
+Tier as it maps to the menu markup: Foundation units are core for almost
+every user. Applied units are mostly core. Transformation units 8–10 are the
+likeliest "when you have time" items for non-builder users — but the selector
+decides per user, not the tier alone.
+
+Units are authored against the §14.3 template and rotate exercise formats
+(§14.4). Unit 01 is built; Units 02–10 are authored over time and seeded into
+`BuffetUnit` as completed.
 
 ---
 
