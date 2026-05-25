@@ -108,7 +108,12 @@ export function AssessmentView() {
     return () => {
       cancelled = true;
     };
-  }, [retryNonce, assessment]);
+    // `assessment` deliberately not in deps — it's an OUTPUT of this effect,
+    // not an input. Including it caused an infinite re-render loop:
+    // setAssessment(JSON.parse(raw)) writes a new object reference on every
+    // run, which retriggers the effect via the dep, which writes again, etc.
+    // Only retryNonce should drive re-execution.
+  }, [retryNonce]);
 
   if (error === "missing") {
     return (
