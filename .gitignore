@@ -50,3 +50,7 @@ next-env.d.ts
 CareerPilot_Business_Brief.docx
 CareerPilot_Business_Brief.pdf
 CareerPilot_Investment_Summary.docx
+
+# stray root-level instruction / working files (Brian's per-session scratch)
+/instruction*.txt
+/instructions*.txt
