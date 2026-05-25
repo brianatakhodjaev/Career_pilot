@@ -1,0 +1,9 @@
+Schema plan approved. Decisions:
+
+CareerPlan — Option A, clean drop of title/trackType/matchScore/description/planData.
+PlanPhase / LearningTask — Option X, drop now. No production data to protect.
+Sequencing — atomic, one commit, agreed; main must never land broken. But insert ONE checkpoint mid-build: after the migration runs and the rewired /api/generate-plans selector exists, STOP and show me the selector output — a sample marked-up menu (units tagged core/later/skip with rationales) for a test profile — before you build /onboard/plans, /onboard/confirm, and the dashboard rewire on top of it. Same way we split the assessment into 7a/7b. Once I approve the selector output, build the three screens and commit the whole thing atomically.
+
+Both additive details approved: prerequisites Int[] on BuffetUnit, and the BuffetUnit FK + @@unique([planId, unitId]) on PlateItem.
+One thing to confirm before you migrate: the test database has test-user rows in CareerPlan/PlanPhase/LearningTask. Option X drops those tables — confirm you're dropping the tables (fine) and that no migration step needs the old rows preserved. Just say so explicitly before running it.
+Also seed Unit 01 v2 into BuffetUnit as part of this — from docs/proposals/buffet-unit-01.md — so the selector has at least one real unit to mark up when I test it.

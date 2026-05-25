@@ -73,19 +73,6 @@ export async function addProgressMinutes(
 }
 
 /**
- * Convenience: record a task completion. Always increments streak (a
- * completed task is by definition activity for the day), and adds the
- * task's estimated minutes to the total.
- */
-export async function recordTaskCompletion(
-  userId: string,
-  estimatedMinutes: number,
-): Promise<void> {
-  await addProgressMinutes(userId, estimatedMinutes);
-  await recordActiveDay(userId);
-}
-
-/**
  * Convenience: record a session end. Always adds the duration to total
  * minutes. Only increments streak if the session was long enough to
  * count as "showing up" — see MIN_SESSION_MINUTES_FOR_STREAK.
