@@ -12,13 +12,15 @@ interface Persona {
 }
 
 // Display titles are deliberately softened from the spec's internal persona
-// names (Veteran/Threatened/Starter). Per §13 design principles, labelling a
-// user as "Threatened" on the first screen of the product is fear-forward;
-// the internal id stays "threatened" so URL/DB/API are unchanged.
+// ids (veteran / threatened / starter). "Veteran" reads as military to many
+// users (not the intended meaning); "Threatened" frames the user as a victim
+// on the first product screen. Internal ids are unchanged for URL param, DB
+// (UserProfile.profileType), and Claude API input — only the display title
+// is softened.
 const personas: Persona[] = [
   {
     id: "veteran",
-    title: "Veteran",
+    title: "Experienced",
     description:
       "Decades of domain expertise. Redirecting toward consulting or an AI-fluent version of your work.",
     Icon: Compass,
