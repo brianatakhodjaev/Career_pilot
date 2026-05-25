@@ -73,8 +73,8 @@ structure, Vercel config). Do NOT fork or import their domain code.
 ## 4. Onboarding flow
 
 ```
-profile selection → 5-question questionnaire → AI exposure assessment
-→ 3 career plans → confirm → dashboard
+profile selection → background intake → 5-question questionnaire
+→ initial AI exposure assessment → 3 career plans → confirm → dashboard
 ```
 
 Pages to build:
@@ -82,6 +82,7 @@ Pages to build:
 | Route | Purpose |
 |---|---|
 | `/onboard/profile` | Choose profile type: veteran / threatened / starter |
+| `/onboard/background` | Capture the user's role and background, in their own words |
 | `/onboard/questions` | 5-question questionnaire, one per screen, progress bar |
 | `/onboard/assessment` | AI exposure assessment — the three-score reveal |
 | `/onboard/plans` | Display 3 AI-generated career paths, user selects one |
@@ -128,10 +129,62 @@ navigation. Answers stored in state, submitted together.
 
 ---
 
+## 5a. The background intake step
+
+Route: `/onboard/background`. Runs immediately after profile selection and
+before the questionnaire. Its job is to capture enough of the user's real
+background that the assessment and plans are specific to them, not generic.
+
+The screen offers ONE text area, with helper text explaining the user can
+provide their background in whichever form is easiest:
+- a few sentences describing their current role and a project they are
+  proud of, or
+- their LinkedIn "About" / experience text, pasted in, or
+- their resume text, pasted in.
+
+**Important:** the field accepts PASTED TEXT only — not a URL or a link.
+LinkedIn blocks automated reading and the app cannot fetch arbitrary resume
+links, so a pasted-link would produce nothing usable. The helper text must
+ask for pasted text explicitly and must not invite a URL.
+
+Prompt wording on the screen (use this or close to it):
+> "Tell us about your work. Paste your LinkedIn About section, your resume,
+> or just describe your current role and a project you're proud of. The more
+> you share, the sharper your assessment."
+
+The step is **strongly encouraged but skippable.** A visible "Skip for now"
+link is present, but the primary action (Continue) is the visually dominant
+choice. The screen should make clear that skipping produces a less precise
+initial assessment.
+
+**Persistence.** The entered text is stored as `UserProfile.resumeText` (the
+field already exists in the §8 schema). The profile pick continues to ride
+as a URL param; background text + questionnaire answers are written together
+when the questionnaire submits, consistent with the existing URL-only /
+sessionStorage persistence pattern. No schema change, no migration.
+
+Both AI calls already accept this text:
+- §6 assess-exposure — already takes `resumeText` in its user message.
+- §7 generate-plans — already takes `Background` in its user message.
+
+So once `/onboard/background` is collecting the text and it flows through,
+both the assessment and the plans become materially more specific with no
+prompt changes required.
+
+---
+
 ## 6. The AI exposure assessment
 
-After the questionnaire, call Claude to produce an honest, evidence-based
-automation-exposure assessment of the user's current role.
+After the questionnaire, call Claude to produce the user's *initial*
+honest, evidence-based automation-exposure assessment of their current
+role.
+
+"Initial" describes how *finished* the assessment is, not how *serious* it
+is. The scores, the five-factor breakdown, and the honest reasoning are
+full-strength. The framing is "here is a real assessment, and it gets
+sharper" — never "here is a rough guess." The screen is titled "Your
+initial assessment," with an expectation-setting line beneath confirming
+it sharpens as the user adds detail and makes progress.
 
 **Methodology** — based on the Anthropic Economic Index distinction between
 *observed exposure* (what AI does in the role today) and *theoretical exposure*
@@ -438,17 +491,23 @@ copy, and field-test recruitment target the **Threatened** profile (mid-career,
    `/onboard/profile` on success and show inline errors on failure.
 5. Build `/onboard/profile` — three large clickable cards (icon, title, two-line
    description) for veteran / threatened / starter.
-6. Build `/onboard/questions` — progress bar, 5 questions one per screen,
+6. Build `/onboard/background` — single text area capturing the user's role
+   and background in their own words, per §5a. Dominant "Continue" action;
+   visible but secondary "Skip for now" link. Pasted text only — no URL
+   field. Entered text is held in state and submitted alongside the
+   questionnaire answers.
+7. Build `/onboard/questions` — progress bar, 5 questions one per screen,
    back/next, answers held in state.
-7. Build `POST /api/assess-exposure` using the section 6 spec.
-8. Build `/onboard/assessment` — three score gauges, exposed vs defensible task
-   columns, the five-factor breakdown, the "exposure is not destiny" reframe.
-   Must follow §13 design principles (defensible content first, factor
-   breakdown shown, scores never displayed alone).
-9. Build `POST /api/generate-plans` using the section 7 spec.
-10. Build `/onboard/plans` — 3 plan cards (match score, timeline, effort, tags,
+8. Build `POST /api/assess-exposure` using the section 6 spec.
+9. Build `/onboard/assessment` — initial assessment screen with the §6
+   reframe (title "Your initial assessment", expectation line beneath),
+   defensible content first, five-factor breakdown, three score gauges,
+   exposed vs defensible task columns, and the constructive path including
+   the §13 principle 7 refinement path. Must follow §13 design principles.
+10. Build `POST /api/generate-plans` using the section 7 spec.
+11. Build `/onboard/plans` — 3 plan cards (match score, timeline, effort, tags,
     description); user taps one; confirm writes the chosen plan to the DB.
-11. Build `/dashboard` — task checklist, three stat cards, session timer.
+12. Build `/dashboard` — task checklist, three stat cards, session timer.
     Must follow §13 design principles (progress leads, score not foregrounded).
 
 ---
@@ -514,6 +573,15 @@ These principles are binding on the assessment and dashboard UI.
 6. **The factor breakdown is shown, not hidden.** The assessment screen
    displays all five factors. High-exposure factors are framed as focus areas;
    low ones are framed explicitly as the user's human advantage.
+
+7. **The assessment shows how to sharpen itself.** The initial assessment
+   screen displays a short, concrete "make this sharper" path — e.g. add a
+   project you led, paste more of your background. This turns the assessment
+   from a finished verdict into an open loop the user can act on. The less
+   background the user provided at intake, the more prominently this prompt
+   is shown: a user who skipped `/onboard/background` sees a clear invitation
+   to add detail; a user who provided rich background sees a lighter-touch
+   version. The refinement path is an invitation, never a scold.
 
 ---
 

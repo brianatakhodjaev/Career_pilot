@@ -108,7 +108,22 @@ export function Questionnaire({ profile }: QuestionnaireProps) {
   }
 
   function handleSubmit() {
-    const payload = { profile, answers };
+    // Preserve any background captured at /onboard/background. We drop
+    // any cached assessment/plans because the inputs may have changed.
+    let background: string | undefined;
+    try {
+      const raw = sessionStorage.getItem(STORAGE_KEY);
+      if (raw) {
+        const existing = JSON.parse(raw) as { background?: unknown };
+        if (typeof existing.background === "string" && existing.background.trim()) {
+          background = existing.background;
+        }
+      }
+    } catch {
+      // ignore — treat as no background
+    }
+
+    const payload = { profile, background, answers };
     try {
       sessionStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
     } catch {

@@ -45,7 +45,7 @@ export function ProfileSelector() {
   const router = useRouter();
 
   function handleSelect(id: ProfileId) {
-    router.push(`/onboard/questions?profile=${id}`);
+    router.push(`/onboard/background?profile=${id}`);
   }
 
   return (

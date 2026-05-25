@@ -4,20 +4,19 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowRight, Check, Loader2 } from "lucide-react";
 import type { Assessment, Factor } from "@/lib/assessment";
+import { isProfileId, type ProfileId } from "@/lib/profiles";
 
 const STORAGE_KEY = "careerpilot:onboarding";
 
 interface StoredPayload {
   profile?: string;
+  background?: string;
   answers?: Record<string, string>;
   assessment?: Assessment;
 }
 
 type ErrorKind = null | "missing" | "api" | "network";
 
-// Loading messages cycle while we wait on Claude (~15s on 4-6). Each is set
-// to feel like the system is actually doing the thing on the next line, not
-// a generic progress spinner.
 const LOADING_MESSAGES = [
   "Reading your background…",
   "Mapping exposure at the task level…",
@@ -27,11 +26,12 @@ const LOADING_MESSAGES = [
 
 export function AssessmentView() {
   const [assessment, setAssessment] = useState<Assessment | null>(null);
+  const [profile, setProfile] = useState<ProfileId | null>(null);
+  const [hasBackground, setHasBackground] = useState(false);
   const [error, setError] = useState<ErrorKind>(null);
   const [msgIndex, setMsgIndex] = useState(0);
   const [retryNonce, setRetryNonce] = useState(0);
 
-  // Cycle the loading message every ~3.5s while we're waiting on Claude.
   useEffect(() => {
     if (assessment) return;
     const id = setInterval(() => {
@@ -59,10 +59,14 @@ export function AssessmentView() {
       return;
     }
 
-    if (!payload.profile || !payload.answers) {
+    if (!payload.profile || !isProfileId(payload.profile) || !payload.answers) {
       setError("missing");
       return;
     }
+
+    setProfile(payload.profile);
+    const trimmedBg = payload.background?.trim();
+    setHasBackground(Boolean(trimmedBg));
 
     // Reuse a previously-computed assessment so we don't re-charge the
     // Claude bill on every back-button visit. retryNonce > 0 forces a
@@ -78,6 +82,7 @@ export function AssessmentView() {
       body: JSON.stringify({
         profileType: payload.profile,
         answers: payload.answers,
+        resumeText: trimmedBg || undefined,
       }),
     })
       .then((r) => r.json())
@@ -106,7 +111,7 @@ export function AssessmentView() {
     return () => {
       cancelled = true;
     };
-  }, [retryNonce]);
+  }, [retryNonce, assessment]);
 
   if (error === "missing") {
     return (
@@ -163,22 +168,46 @@ export function AssessmentView() {
     );
   }
 
-  return <AssessmentDisplay assessment={assessment} />;
+  return (
+    <AssessmentDisplay
+      assessment={assessment}
+      profile={profile}
+      hasBackground={hasBackground}
+    />
+  );
 }
 
 // §13-ordered render: defensible → factor breakdown (with exposed tasks as a
-// concrete sub-list) → three scores → constructive path with reframe + CTA.
-function AssessmentDisplay({ assessment }: { assessment: Assessment }) {
+// concrete sub-list) → three scores → constructive path with reframe,
+// refinement path (§13 principle 7), and CTA.
+function AssessmentDisplay({
+  assessment,
+  profile,
+  hasBackground,
+}: {
+  assessment: Assessment;
+  profile: ProfileId | null;
+  hasBackground: boolean;
+}) {
+  const backgroundHref = profile
+    ? `/onboard/background?profile=${profile}`
+    : "/onboard/background";
+
   return (
     <main className="px-4 py-12">
       <div className="mx-auto w-full max-w-3xl space-y-16">
+        {/* Header with §6 / Amendment 2 reframe */}
         <header>
-          <p className="text-xs uppercase tracking-wider text-gray-500">
-            Your assessment
-          </p>
-          <h1 className="mt-2 text-3xl font-semibold tracking-tight">
-            {assessment.occupationLabel}
+          <h1 className="text-3xl font-semibold tracking-tight">
+            Your initial assessment
           </h1>
+          <p className="mt-2 text-sm text-gray-600">
+            {assessment.occupationLabel}
+          </p>
+          <p className="mt-4 text-sm italic text-gray-600">
+            This is a first read based on what you&apos;ve shared so far. It
+            sharpens as you add detail and as you make progress.
+          </p>
         </header>
 
         {/* 1. Defensible — "Still yours" (leads per §13 principle 2) */}
@@ -231,8 +260,7 @@ function AssessmentDisplay({ assessment }: { assessment: Assessment }) {
           </div>
         </section>
 
-        {/* 3. Three scores (§13 principle 3 — never shown alone; the
-            with-plan tile is the lever, visually emphasised) */}
+        {/* 3. Three scores (§13 principle 3 — never shown alone) */}
         <section aria-labelledby="scores-heading">
           <h2 id="scores-heading" className="text-xl font-semibold">
             Your numbers
@@ -252,7 +280,8 @@ function AssessmentDisplay({ assessment }: { assessment: Assessment }) {
           </div>
         </section>
 
-        {/* 4. Constructive path — reasoning, reframe, CTA */}
+        {/* 4. Constructive path — reasoning, reframe, refinement path (§13
+            principle 7), CTA */}
         <section aria-labelledby="meaning-heading">
           <h2 id="meaning-heading" className="text-xl font-semibold">
             What this means
@@ -271,6 +300,39 @@ function AssessmentDisplay({ assessment }: { assessment: Assessment }) {
             </strong>{" "}
             What you do next is what changes the number.
           </div>
+
+          {/* §13 principle 7 — refinement path. Prominent if no background
+              was provided; light-touch if it was. Always an invitation,
+              never a scold. */}
+          {hasBackground ? (
+            <p className="mt-6 text-xs text-gray-500">
+              Want this read to sharpen further?{" "}
+              <Link
+                href={backgroundHref}
+                className="underline underline-offset-2 hover:no-underline"
+              >
+                Update your background
+              </Link>
+              .
+            </p>
+          ) : (
+            <div className="mt-6 rounded-md border-2 border-gray-300 bg-white p-5">
+              <h3 className="text-base font-semibold">Make this sharper</h3>
+              <p className="mt-1 text-sm text-gray-600">
+                This was a first read with limited context. Add a sentence or
+                two about your work — a project you&apos;re proud of, your
+                current role, your LinkedIn summary — and the assessment will
+                ground itself in your real situation.
+              </p>
+              <Link
+                href={backgroundHref}
+                className="mt-3 inline-flex items-center gap-1 text-sm font-medium text-black underline underline-offset-4 hover:no-underline"
+              >
+                Add your background
+                <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+              </Link>
+            </div>
+          )}
 
           <Link
             href="/onboard/plans"
