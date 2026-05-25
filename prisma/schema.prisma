@@ -104,6 +104,7 @@ model CareerPlan {
   description   String
   planData      Json
   createdAt     DateTime          @default(now())
+  startedAt     DateTime? // null until the user explicitly clicks "Begin week 1" on /dashboard. Week N is computed from this, not createdAt — see §13 principle on never-show-behind.
   profile       UserProfile       @relation(fields: [userId], references: [userId])
   phases        PlanPhase[]
   sessions      LearningSession[]

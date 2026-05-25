@@ -395,6 +395,7 @@ model CareerPlan {
   description   String
   planData      Json
   createdAt     DateTime          @default(now())
+  startedAt     DateTime? // null until the user clicks "Begin week 1" on /dashboard; current week is computed from this, not createdAt
   profile       UserProfile       @relation(fields: [userId], references: [userId])
   phases        PlanPhase[]
   sessions      LearningSession[]
@@ -514,8 +515,15 @@ copy, and field-test recruitment target the **Threatened** profile (mid-career,
     POST to `/api/plans/confirm` which deactivates any prior active plan and
     creates a new `CareerPlan` row (with nested `PlanPhase` and `LearningTask`
     rows) marked `isActive: true`, then route to `/dashboard`.
-13. Build `/dashboard` — task checklist, three stat cards, session timer.
-    Must follow §13 design principles (progress leads, score not foregrounded).
+13. Build `/dashboard` — header (plan title + current week), three stat cards
+    (plan progress, day streak, minutes logged), today's task checklist
+    (all uncompleted tasks in the current phase, with completion toggle),
+    start/stop session timer, footer links to `/assessment` (latest read
+    from DB) and `/onboard/background` (refinement path, light touch).
+    The plan does not auto-start: a "Begin week 1" CTA sets
+    `CareerPlan.startedAt` on click and is the only thing rendered in the
+    task area until then (never show a user as "behind" before they begin).
+    Must follow §13 design principles, including principle 8 (streak rules).
 
 ---
 
@@ -589,6 +597,15 @@ These principles are binding on the assessment and dashboard UI.
    is shown: a user who skipped `/onboard/background` sees a clear invitation
    to add detail; a user who provided rich background sees a lighter-touch
    version. The refinement path is an invitation, never a scold.
+
+8. **Streak rewards showing up, not hitting volume.** A day counts toward
+   `UserProgress.currentStreak` if the user completes any `LearningTask` OR
+   logs a `LearningSession` of at least 10 minutes. A focused 25-minute
+   session that finishes no task must still keep the streak. The streak is
+   a "you came back" signal, not a "you produced" signal — and the
+   dashboard never shows a user as "behind" against a schedule they
+   haven't explicitly started (which is why `CareerPlan.startedAt` is set
+   by an explicit "Begin week 1" click, not by `createdAt`).
 
 ---
 
