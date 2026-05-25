@@ -86,3 +86,17 @@ export async function recordSessionEnd(
     await recordActiveDay(userId);
   }
 }
+
+/**
+ * Convenience: record a PlateItem completion (post-Amendment 3 equivalent
+ * of recordTaskCompletion). Always increments streak; adds the unit's
+ * midpoint estimated minutes to the total (units have a range
+ * timeRangeMin..timeRangeMax, no single exact estimate).
+ */
+export async function recordPlateItemCompletion(
+  userId: string,
+  midpointMinutes: number,
+): Promise<void> {
+  await addProgressMinutes(userId, midpointMinutes);
+  await recordActiveDay(userId);
+}
