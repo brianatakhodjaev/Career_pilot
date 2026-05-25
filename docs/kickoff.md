@@ -454,6 +454,7 @@ Run `npx prisma migrate dev` after adding these.
 |---|---|---|
 | `/api/assess-exposure` | POST | Claude call → 3-score exposure assessment |
 | `/api/generate-plans` | POST | Claude call → 3 career plans as JSON |
+| `/api/plans/confirm` | POST | Persist chosen plan + phases + tasks; mark `isActive: true` |
 | `/api/tasks/complete` | POST | Mark a task done, update UserProgress |
 | `/api/sessions/start` | POST | Start a timed learning session |
 | `/api/sessions/end` | POST | End session, save notes + tools used |
@@ -506,8 +507,14 @@ copy, and field-test recruitment target the **Threatened** profile (mid-career,
    the §13 principle 7 refinement path. Must follow §13 design principles.
 10. Build `POST /api/generate-plans` using the section 7 spec.
 11. Build `/onboard/plans` — 3 plan cards (match score, timeline, effort, tags,
-    description); user taps one; confirm writes the chosen plan to the DB.
-12. Build `/dashboard` — task checklist, three stat cards, session timer.
+    description). User taps one; selection is held in sessionStorage and the
+    flow proceeds to `/onboard/confirm`.
+12. Build `/onboard/confirm` — render the chosen plan in full (summary card +
+    phase-by-phase breakdown with objectives and tasks). On "Start this plan,"
+    POST to `/api/plans/confirm` which deactivates any prior active plan and
+    creates a new `CareerPlan` row (with nested `PlanPhase` and `LearningTask`
+    rows) marked `isActive: true`, then route to `/dashboard`.
+13. Build `/dashboard` — task checklist, three stat cards, session timer.
     Must follow §13 design principles (progress leads, score not foregrounded).
 
 ---
