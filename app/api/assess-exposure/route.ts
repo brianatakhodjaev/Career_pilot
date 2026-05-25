@@ -8,19 +8,12 @@ import {
   CLAUDE_MODEL,
   getAnthropicClient,
 } from "@/lib/anthropic";
+import { AssessmentSchema, type Assessment } from "@/lib/assessment";
 
 // Allow Claude calls up to 60s — Sonnet on a structured-JSON task usually
 // completes in 5–15s, but cold serverless containers + Neon connect can
 // stretch the tail. Vercel Pro caps at 60s on the default runtime.
 export const maxDuration = 60;
-
-const FIVE_FACTOR_LABELS = [
-  "Routine and repeatable tasks",
-  "Content and analysis generation",
-  "Judgment in ambiguous situations",
-  "Relationship and trust dependence",
-  "Physical and on-site work",
-] as const;
 
 const RequestSchema = z.object({
   profileType: z.enum(["veteran", "threatened", "starter"]),
@@ -30,25 +23,6 @@ const RequestSchema = z.object({
   linkedInUrl: z.string().url().optional(),
   resumeText: z.string().min(20).max(20000).optional(),
 });
-
-const FactorSchema = z.object({
-  label: z.enum(FIVE_FACTOR_LABELS),
-  score: z.number().int().min(0).max(10),
-  note: z.string().min(1),
-});
-
-const AssessmentSchema = z.object({
-  occupationLabel: z.string().min(1),
-  scoreToday: z.number().int().min(0).max(10),
-  scoreProjected: z.number().int().min(0).max(10),
-  scoreWithPlan: z.number().int().min(0).max(10),
-  factors: z.array(FactorSchema).length(5),
-  exposedTasks: z.array(z.string().min(1)).min(3).max(4),
-  defensibleTasks: z.array(z.string().min(1)).min(3).max(4),
-  reasoning: z.string().min(1),
-});
-
-type Assessment = z.infer<typeof AssessmentSchema>;
 
 function extractText(response: Anthropic.Messages.Message): string {
   return response.content
