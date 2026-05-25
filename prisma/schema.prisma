@@ -112,7 +112,7 @@ model CareerPlan {
 model PlanPhase {
   id         String         @id @default(cuid())
   planId     String
-  weekNumber Int
+  weekNumber Int // The week within the plan that this phase begins (e.g., 1, 3, 6 in a 16-week plan), not a phase index.
   title      String
   objectives String[]
   plan       CareerPlan     @relation(fields: [planId], references: [id])

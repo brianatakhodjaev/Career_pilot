@@ -29,6 +29,7 @@ export const TaskSchema = z.object({
 });
 
 export const PhaseSchema = z.object({
+  /** The week within the plan that this phase begins (e.g., 1, 3, 6 in a 16-week plan), NOT a phase index. UI should render as "Starts week N". */
   weekNumber: z.number().int().min(1).max(52),
   title: z.string().min(1),
   objectives: z.array(z.string().min(1)).min(1).max(6),

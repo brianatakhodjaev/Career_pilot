@@ -254,6 +254,8 @@ All numeric fields — matchScore, durationWeeks, hoursPerWeek, weekNumber, and
 estimatedMinutes — MUST be whole-number integers. Do not use decimals.
 matchScore is 0-100. durationWeeks is 1-52. hoursPerWeek should reflect the
 user's stated weekly capacity. estimatedMinutes is between 5 and 600 per task.
+weekNumber is the week within the plan that this phase begins (e.g., 1, 3, 6
+in a 16-week plan), not a phase index.
 
 Each plan MUST contain 2 to 6 tags. Each phase MUST contain 1 to 6 objectives
 and 1 to 4 tasks. A plan MUST contain at least 1 phase and at most 8. Plans
@@ -275,7 +277,7 @@ Return ONLY valid JSON, no markdown, with this structure:
     "description": string,
     "tags": string[],
     "phases": [{
-      "weekNumber": number,
+      "weekNumber": number,         // week the phase begins (e.g., 1, 3, 6 in a 16-week plan)
       "title": string,
       "objectives": string[],
       "tasks": [{
@@ -348,7 +350,7 @@ model CareerPlan {
 model PlanPhase {
   id          String         @id @default(cuid())
   planId      String
-  weekNumber  Int
+  weekNumber  Int            // week the phase begins within the plan (e.g., 1, 3, 6 in a 16-week plan), not a phase index
   title       String
   objectives  String[]
   plan        CareerPlan     @relation(fields: [planId], references: [id])

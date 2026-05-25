@@ -64,7 +64,7 @@ Each plan should move the user away from high-exposure work toward a more defens
 
 The plans array MUST contain exactly 3 plans. trackType MUST be one of: consultant, builder, strategist, educator, expert. task.type MUST be one of: reading, practice, project, experiment.
 
-All numeric fields — matchScore, durationWeeks, hoursPerWeek, weekNumber, and estimatedMinutes — MUST be whole-number integers. Do not use decimals. matchScore is 0-100. durationWeeks is 1-52. hoursPerWeek should reflect the user's stated weekly capacity. estimatedMinutes is between 5 and 600 per task.
+All numeric fields — matchScore, durationWeeks, hoursPerWeek, weekNumber, and estimatedMinutes — MUST be whole-number integers. Do not use decimals. matchScore is 0-100. durationWeeks is 1-52. hoursPerWeek should reflect the user's stated weekly capacity. estimatedMinutes is between 5 and 600 per task. weekNumber is the week within the plan that this phase begins (e.g., 1, 3, 6 in a 16-week plan), not a phase index.
 
 Each plan MUST contain 2 to 6 tags. Each phase MUST contain 1 to 6 objectives and 1 to 4 tasks. A plan MUST contain at least 1 phase and at most 8. Plans on a selection card must be graspable at a glance — keep task titles concise and avoid sprawling phase trees.
 
