@@ -84,6 +84,7 @@ model RiskAssessment {
   scoreToday      Int
   scoreProjected  Int
   scoreWithPlan   Int
+  factors         Json // [{ label, score, note }] x 5 — see kickoff §6
   exposedTasks    String[]
   defensibleTasks String[]
   reasoning       String

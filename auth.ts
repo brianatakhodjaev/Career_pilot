@@ -45,4 +45,20 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   pages: {
     signIn: "/login",
   },
+  callbacks: {
+    // Carry the User id through the JWT so API routes can read
+    // session.user.id without an extra DB lookup.
+    jwt({ token, user }) {
+      if (user) {
+        token.id = user.id;
+      }
+      return token;
+    },
+    session({ session, token }) {
+      if (token.id && session.user) {
+        session.user.id = token.id as string;
+      }
+      return session;
+    },
+  },
 });
