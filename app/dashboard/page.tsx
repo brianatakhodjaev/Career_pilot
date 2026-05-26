@@ -11,29 +11,24 @@ export default async function DashboardPage() {
   }
   const userId = session.user.id;
 
-  const [plan, progress, activeSession, latestAssessment, userProfile] =
-    await Promise.all([
-      prisma.careerPlan.findFirst({
-        where: { userId, isActive: true },
-        include: {
-          plateItems: {
-            include: { unit: true },
-            orderBy: { orderIndex: "asc" },
-          },
+  const [plan, progress, latestAssessment, userProfile] = await Promise.all([
+    prisma.careerPlan.findFirst({
+      where: { userId, isActive: true },
+      include: {
+        plateItems: {
+          include: { unit: true },
+          orderBy: { orderIndex: "asc" },
         },
-      }),
-      prisma.userProgress.findUnique({ where: { userId } }),
-      prisma.learningSession.findFirst({
-        where: { userId, endedAt: null },
-        orderBy: { startedAt: "desc" },
-      }),
-      prisma.riskAssessment.findFirst({
-        where: { userId },
-        orderBy: { createdAt: "desc" },
-        select: { id: true },
-      }),
-      prisma.userProfile.findUnique({ where: { userId } }),
-    ]);
+      },
+    }),
+    prisma.userProgress.findUnique({ where: { userId } }),
+    prisma.riskAssessment.findFirst({
+      where: { userId },
+      orderBy: { createdAt: "desc" },
+      select: { id: true },
+    }),
+    prisma.userProfile.findUnique({ where: { userId } }),
+  ]);
 
   if (!plan) {
     return (
@@ -55,7 +50,9 @@ export default async function DashboardPage() {
     );
   }
 
-  // Serialise to plain JSON for the client component (Date → ISO).
+  // Post-Amendment 4: no activeSession fetch (timer moves to the lesson
+  // screen). PlateItem.startedAt is added to the serialised data so the
+  // three-state status badge can render (§15.3).
   const data: DashboardData = {
     plan: {
       id: plan.id,
@@ -67,6 +64,7 @@ export default async function DashboardPage() {
         tag: p.tag,
         rationale: p.rationale,
         orderIndex: p.orderIndex,
+        startedAt: p.startedAt?.toISOString() ?? null,
         completedAt: p.completedAt?.toISOString() ?? null,
         unit: {
           id: p.unit.id,
@@ -85,12 +83,6 @@ export default async function DashboardPage() {
       longestStreak: progress?.longestStreak ?? 0,
       totalMinutes: progress?.totalMinutes ?? 0,
     },
-    activeSession: activeSession
-      ? {
-          id: activeSession.id,
-          startedAt: activeSession.startedAt.toISOString(),
-        }
-      : null,
     hasAssessment: Boolean(latestAssessment),
     backgroundHref: userProfile?.profileType
       ? `/onboard/background?profile=${userProfile.profileType}`

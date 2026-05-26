@@ -139,6 +139,7 @@ model PlateItem {
   tag         String // core | later | skip
   rationale   String
   orderIndex  Int
+  startedAt   DateTime? // set when the lesson is first opened — three-state status with completedAt per §15.3
   completedAt DateTime?
   plan        CareerPlan @relation(fields: [planId], references: [id])
   unit        BuffetUnit @relation(fields: [unitId], references: [id])

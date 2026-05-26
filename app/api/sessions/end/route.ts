@@ -4,8 +4,15 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { recordSessionEnd } from "@/lib/streak";
 
+// Per Amendment 4 §15.4: callers (the lesson screen) supply working time
+// — minutes spent counting, with paused time EXCLUDED. The fallback to
+// elapsed time is kept for safety in case any future caller skips the
+// param. recordSessionEnd applies the §13 principle 8 streak rule
+// (>= 10 working minutes increments streak).
+
 const RequestSchema = z.object({
   sessionId: z.string().min(1),
+  workingTimeMin: z.number().int().min(0).optional(),
 });
 
 export async function POST(request: Request) {
@@ -44,17 +51,17 @@ export async function POST(request: Request) {
   }
 
   const endedAt = new Date();
-  const durationMin = Math.max(
+  const elapsedMin = Math.max(
     1,
     Math.round((endedAt.getTime() - learning.startedAt.getTime()) / 60_000),
   );
+  const durationMin = parsed.data.workingTimeMin ?? elapsedMin;
 
   await prisma.learningSession.update({
     where: { id: learning.id },
     data: { endedAt, durationMin },
   });
 
-  // §13 principle 8: session counts toward streak only if >= 10 minutes.
   await recordSessionEnd(userId, durationMin);
 
   return NextResponse.json(

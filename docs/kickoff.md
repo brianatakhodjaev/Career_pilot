@@ -909,6 +909,13 @@ The dashboard keeps the "minutes logged" stat but no longer carries the
 timer control — the timer belongs with the lesson. Logging study time
 outside a lesson is out of scope for v1.
 
+> **Future enhancement — persisted reflection answers.** Reflection
+> answers (§15.2 step 4) are sessionStorage-only in v1. Persisting them
+> via a `reflectionAnswers` Json column on `PlateItem` is a likely
+> follow-on — those answers are valuable longitudinal data about how the
+> user is making progress and should not be discarded permanently. Build
+> when the buffet has fed enough lessons to make the data worth keeping.
+
 ---
 
 *End of kickoff spec.*
