@@ -505,8 +505,12 @@ model PlateItem {
   tag         String // core | later | skip
   rationale   String // the selector's one-line "why this helps you"
   orderIndex  Int
+  startedAt   DateTime? // set when the lesson is first opened — see §15.3 for the three-state status (not started / in progress / complete)
   completedAt DateTime?
   plan        CareerPlan @relation(fields: [planId], references: [id])
+  unit        BuffetUnit @relation(fields: [unitId], references: [id])
+
+  @@unique([planId, unitId])
 }
 ```
 
@@ -589,16 +593,24 @@ copy, and field-test recruitment target the **Threatened** profile (mid-career,
     Mark the plate `isActive: true`; deactivate any prior plate. Route to
     `/dashboard`.
 13. Build `/dashboard` — header (plate title + current week), three stat
-    cards (plate progress, day streak, minutes logged), today's task area
-    (current `PlateItem` rows / current buffet unit, with completion
-    toggle at the unit level), start/stop session timer, footer links to
-    `/assessment` (latest read from DB) and `/onboard/background`
-    (refinement path, light touch). The plate does not auto-start: a
-    "Begin week 1" CTA sets `CareerPlan.startedAt` on click and is the
-    only thing rendered in the task area until then (never show a user as
-    "behind" before they begin — see also §13 principle 9). Must follow
-    §13 design principles, including principles 8 and 9 (streak rules
-    and curriculum re-pacing).
+    cards (plate progress, day streak, minutes logged), and a "What
+    you're working on" area showing each core `PlateItem` as a clickable
+    card linking to its lesson at `/learn/[unitNumber]`. Cards show
+    three-state status per §15.3: not started / in progress / complete.
+    The dashboard *reflects* completion; it does NOT *set* it
+    (completion lives on the lesson screen — Amendment 4). The "Begin
+    week 1" CTA sets `CareerPlan.startedAt` on click and is the only
+    control in the not-started state — no session timer on this screen
+    (timer moves to the lesson per §15.4). Footer links to `/assessment`
+    and `/onboard/background`. Must follow §13 design principles,
+    including principles 8 and 9 (streak rules and curriculum
+    re-pacing).
+14. Build `/learn/[unitNumber]` — the lesson-delivery screen per §15:
+    stepped flow (why this matters → teaching → exercise → reflection
+    → wrap-up), Start/Pause/Resume session timer on this screen, and
+    the "Mark this unit complete" action that sets `PlateItem.completedAt`
+    via `/api/plate-items/complete`. Sets `PlateItem.startedAt` on first
+    open. Requires the `PlateItem.startedAt` migration (§8).
 
 ---
 
@@ -821,6 +833,81 @@ decides per user, not the tier alone.
 Units are authored against the §14.3 template and rotate exercise formats
 (§14.4). Unit 01 is built; Units 02–10 are authored over time and seeded into
 `BuffetUnit` as completed.
+
+---
+
+## 15. Lesson delivery
+
+### 15.1 The lesson screen
+
+A route — `/learn/[unitNumber]` — delivers one buffet unit as a worked-
+through lesson. It takes a `BuffetUnit` and renders its content (§14.3) as
+a guided learning session: the user reads the teaching, works the exercise,
+does the reflection, and reaches an explicit completion.
+
+**Design decision — one unit, one session.** A unit is sized for a single
+sitting (15–30 min, §14.5). The lesson screen carries the user through the
+whole unit in one pass. It does NOT bookmark a position mid-unit: if the
+user leaves a lesson unfinished and returns, the lesson restarts from the
+top. (Resuming mid-unit at the exact section is a possible later
+refinement, deliberately not built now — for short units, restarting is
+acceptable and far simpler.)
+
+### 15.2 The lesson flow
+
+The lesson is presented as a short stepped sequence, not one long scroll,
+so there is a clear sense of progression and an unambiguous finish. A small
+progress indicator shows the user where they are (e.g. "Step 2 of 5").
+
+**Header (persistent):** unit title, tier, time range, exercise format, and
+the one-line skill statement.
+
+**Steps, in order, drawn from the unit's content (§14.3):**
+
+1. **Why this matters** — the unit's `whyThisMatters`.
+2. **The teaching** — the unit's `teaching` points.
+3. **The exercise** — the unit's `exercise`. This step sends the user to an
+   external AI tool to do the hands-on work, then back. The scaffolded
+   sample material (§14.5) is shown here.
+4. **Reflection** — the unit's `reflection` prompts; the user records their
+   answers.
+5. **Wrap-up** — the unit's `successCheck` (how the user knows it worked),
+   the `tools` list, and the `goingDeeper` pointer. Ends with the
+   completion action.
+
+A "Continue" control advances each step. The final step carries the
+explicit **"Mark this unit complete"** action.
+
+### 15.3 Completion gating
+
+This is the core fix from the walkthrough. **A unit is marked complete
+ONLY by reaching the end of its lesson and confirming completion there.**
+
+- The dashboard no longer has a bare completion checkbox. Completion
+  cannot be toggled from the dashboard.
+- Reaching the wrap-up step and confirming sets `PlateItem.completedAt`.
+- A unit therefore has three states, derived from `PlateItem.startedAt` +
+  `PlateItem.completedAt`:
+  - both null → **not started**
+  - `startedAt` set, `completedAt` null → **in progress**
+  - `completedAt` set → **complete**
+
+### 15.4 The session timer
+
+The Start / Pause / Resume session timer lives on the lesson screen — it
+times the user's work on the unit, where learning actually happens.
+
+- **Start** begins timing; **Pause** stops the count and holds; **Resume**
+  continues from where it paused.
+- Counted time is *working time* — paused time does NOT count toward
+  minutes logged or the streak.
+- The streak rule (§13 principle 8) is unchanged: a day counts if the user
+  completes a unit OR logs a session of at least 10 minutes of working
+  time.
+
+The dashboard keeps the "minutes logged" stat but no longer carries the
+timer control — the timer belongs with the lesson. Logging study time
+outside a lesson is out of scope for v1.
 
 ---
 
