@@ -12,6 +12,9 @@ const STORAGE_KEY = "careerpilot:onboarding";
 interface StoredPayload {
   profile?: string;
   background?: string;
+  proudPoint?: string;
+  reviewSummary?: string;
+  reviewCorrection?: string;
   answers?: Record<string, string>;
   assessment?: Assessment;
 }
@@ -81,6 +84,9 @@ export function AssessmentView() {
         profileType: payload.profile,
         answers: payload.answers,
         resumeText: trimmedBg || undefined,
+        proudPoint: payload.proudPoint?.trim() || undefined,
+        reviewSummary: payload.reviewSummary?.trim() || undefined,
+        reviewCorrection: payload.reviewCorrection?.trim() || undefined,
       }),
     })
       .then((r) => r.json())
@@ -174,11 +180,35 @@ export function AssessmentView() {
     ? `/onboard/background?profile=${profile}`
     : "/onboard/background";
 
+  // §13 principle 7: the assessment shows how to sharpen itself. The
+  // prominence of the refinement prompt scales with inputDepth — thin
+  // input gets a strong invitation; rich input gets a light pointer.
+  // Combined with hasBackground for backward compatibility with the
+  // /assessment server view.
+  const showThinPrompt = assessment.inputDepth === "thin" || !hasBackground;
+
   return (
     <AssessmentDisplay
       assessment={assessment}
       refinementSlot={
-        hasBackground ? (
+        showThinPrompt ? (
+          <div className="mt-6 rounded-md border-2 border-gray-300 bg-white p-5">
+            <h3 className="text-base font-semibold">Make this sharper</h3>
+            <p className="mt-1 text-sm text-gray-600">
+              This was a first read with the context you provided. Add a
+              specific project, a deliverable you led, or more of your
+              LinkedIn summary — and the assessment will ground itself in
+              your real situation.
+            </p>
+            <Link
+              href={backgroundHref}
+              className="mt-3 inline-flex items-center gap-1 text-sm font-medium text-black underline underline-offset-4 hover:no-underline"
+            >
+              Add more background
+              <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+            </Link>
+          </div>
+        ) : (
           <p className="mt-6 text-xs text-gray-500">
             Want this read to sharpen further?{" "}
             <Link
@@ -189,23 +219,6 @@ export function AssessmentView() {
             </Link>
             .
           </p>
-        ) : (
-          <div className="mt-6 rounded-md border-2 border-gray-300 bg-white p-5">
-            <h3 className="text-base font-semibold">Make this sharper</h3>
-            <p className="mt-1 text-sm text-gray-600">
-              This was a first read with limited context. Add a sentence or
-              two about your work — a project you&apos;re proud of, your
-              current role, your LinkedIn summary — and the assessment will
-              ground itself in your real situation.
-            </p>
-            <Link
-              href={backgroundHref}
-              className="mt-3 inline-flex items-center gap-1 text-sm font-medium text-black underline underline-offset-4 hover:no-underline"
-            >
-              Add your background
-              <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
-            </Link>
-          </div>
         )
       }
       bottomCta={

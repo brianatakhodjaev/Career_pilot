@@ -1,9 +1,20 @@
 import { Check } from "lucide-react";
-import type { Assessment, Factor } from "@/lib/assessment";
+import type {
+  Assessment,
+  ExposedWorkItem,
+  Factor,
+  InputDepth,
+} from "@/lib/assessment";
 
 // Pure render — no hooks, no client-only APIs. Both /onboard/assessment
 // (client, sessionStorage-backed) and /assessment (server, DB-backed) use
 // this. Parents pass their own refinement-path UI and bottom CTA via slots.
+//
+// Amendment 5: renders the expanded assessment shape — inputDepth callout
+// (prominent for "thin", subtle otherwise), exposedWork cards with
+// representative tools and a branch suggestion per item, and the renamed
+// defensibleWork list. Ordering still per §13: defensible first, then
+// factors + exposed work, then scores, then constructive path.
 
 interface AssessmentDisplayProps {
   assessment: Assessment;
@@ -28,6 +39,13 @@ export function AssessmentDisplay({
             This is a first read based on what you&apos;ve shared so far. It
             sharpens as you add detail and as you make progress.
           </p>
+
+          {/* §13 principle 10: surface inputDepth, don't hide it. Prominent
+              callout when input is thin; subtle line otherwise. */}
+          <InputDepthCallout
+            depth={assessment.inputDepth}
+            note={assessment.inputDepthNote}
+          />
         </header>
 
         {/* 1. Defensible — "Still yours" (§13 principle 2: leads) */}
@@ -39,19 +57,19 @@ export function AssessmentDisplay({
             The parts of your role that don&apos;t go away.
           </p>
           <ul className="mt-6 space-y-3">
-            {assessment.defensibleTasks.map((task) => (
+            {assessment.defensibleWork.map((item) => (
               <li
-                key={task}
+                key={item}
                 className="flex items-start gap-3 rounded-md border border-gray-200 bg-white p-4"
               >
                 <Check className="mt-0.5 h-5 w-5 flex-shrink-0 text-black" aria-hidden="true" />
-                <span className="text-sm">{task}</span>
+                <span className="text-sm">{item}</span>
               </li>
             ))}
           </ul>
         </section>
 
-        {/* 2. Factor breakdown (§13 principle 6) + exposed-tasks sub-list */}
+        {/* 2. Factor breakdown (§13 principle 6) + exposed-work cards */}
         <section aria-labelledby="factors-heading">
           <h2 id="factors-heading" className="text-xl font-semibold">
             Where the pressure is
@@ -66,16 +84,19 @@ export function AssessmentDisplay({
             ))}
           </div>
 
-          <div className="mt-8 rounded-md border border-gray-200 bg-gray-50 p-4">
-            <h3 className="text-sm font-semibold">Specific tasks most exposed</h3>
-            <p className="mt-1 text-xs text-gray-600">
-              The concrete work where AI is already capable.
+          <div className="mt-10">
+            <h3 className="text-base font-semibold">
+              The work most exposed — and where to branch
+            </h3>
+            <p className="mt-1 text-sm text-gray-600">
+              For each exposed area: the tools that already do it, and an
+              adjacent area less exposed where your judgment still leads.
             </p>
-            <ul className="mt-3 space-y-1.5 text-sm text-gray-700">
-              {assessment.exposedTasks.map((task) => (
-                <li key={task}>• {task}</li>
+            <div className="mt-5 space-y-3">
+              {assessment.exposedWork.map((item, i) => (
+                <ExposedWorkCard key={i} item={item} />
               ))}
-            </ul>
+            </div>
           </div>
         </section>
 
@@ -124,6 +145,57 @@ export function AssessmentDisplay({
       </div>
     </main>
   );
+}
+
+function InputDepthCallout({
+  depth,
+  note,
+}: {
+  depth: InputDepth;
+  note: string;
+}) {
+  if (depth === "thin") {
+    return (
+      <div
+        role="note"
+        className="mt-6 rounded-md border-2 border-black bg-white px-4 py-3 text-sm text-gray-800"
+      >
+        <strong className="font-medium">A first read with limited context.</strong>{" "}
+        {note}
+      </div>
+    );
+  }
+  if (depth === "moderate") {
+    return (
+      <p className="mt-4 text-xs text-gray-500">
+        <span className="font-medium text-gray-700">Calibration:</span> {note}
+      </p>
+    );
+  }
+  return <p className="mt-4 text-xs text-gray-500">{note}</p>;
+}
+
+function ExposedWorkCard({ item }: { item: ExposedWorkItem }) {
+  return (
+    <div className="rounded-md border border-gray-200 bg-white p-4">
+      <p className="text-sm font-medium text-gray-900">{item.work}</p>
+      <p className="mt-3 text-xs text-gray-600">
+        <span className="font-medium text-gray-800">Tools that automate or enhance this:</span>{" "}
+        tools like {formatTools(item.tools)}.
+      </p>
+      <p className="mt-2 text-xs text-gray-600">
+        <span className="font-medium text-gray-800">Less exposed adjacent work:</span>{" "}
+        {item.branchTo}
+      </p>
+    </div>
+  );
+}
+
+function formatTools(tools: string[]): string {
+  if (tools.length === 0) return "(none)";
+  if (tools.length === 1) return tools[0];
+  if (tools.length === 2) return `${tools[0]} or ${tools[1]}`;
+  return `${tools.slice(0, -1).join(", ")}, or ${tools[tools.length - 1]}`;
 }
 
 function FactorRow({ factor }: { factor: Factor }) {

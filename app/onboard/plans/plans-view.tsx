@@ -412,6 +412,8 @@ function UnitCard({
 
       <p className="mt-3 text-sm text-gray-700">{unit.skill}</p>
 
+      <AddressesLine tag={item.tag} addressesFinding={item.addressesFinding} />
+
       <p className="mt-3 rounded-md bg-gray-50 px-3 py-2 text-sm italic text-gray-700">
         {item.rationale}
       </p>
@@ -423,6 +425,37 @@ function UnitCard({
         />
       </div>
     </div>
+  );
+}
+
+// Amendment 5 Change 4.2: every unit visibly cites the assessment finding
+// it addresses. Bold on Core, lighter on Later, brief reason on Skip.
+function AddressesLine({
+  tag,
+  addressesFinding,
+}: {
+  tag: SelectorTag;
+  addressesFinding: string;
+}) {
+  if (tag === "skip") {
+    return (
+      <p className="mt-3 text-xs text-gray-500">
+        <span className="font-medium">Why skip:</span> {addressesFinding}
+      </p>
+    );
+  }
+  const label = tag === "core" ? "Addresses" : "Could address";
+  return (
+    <p
+      className={`mt-3 text-xs ${
+        tag === "core" ? "text-gray-800" : "text-gray-600"
+      }`}
+    >
+      <span className={`font-semibold ${tag === "core" ? "text-black" : ""}`}>
+        {label}:
+      </span>{" "}
+      {addressesFinding}
+    </p>
   );
 }
 

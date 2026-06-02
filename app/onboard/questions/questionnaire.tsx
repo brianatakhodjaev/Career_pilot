@@ -108,22 +108,47 @@ export function Questionnaire({ profile }: QuestionnaireProps) {
   }
 
   function handleSubmit() {
-    // Preserve any background captured at /onboard/background. We drop
-    // any cached assessment/plans because the inputs may have changed.
+    // Preserve background, proudPoint, reviewSummary, and reviewCorrection
+    // captured earlier in the intake. Drop any cached assessment/selector
+    // output because the answers may have changed.
     let background: string | undefined;
+    let proudPoint: string | undefined;
+    let reviewSummary: string | undefined;
+    let reviewCorrection: string | undefined;
     try {
       const raw = sessionStorage.getItem(STORAGE_KEY);
       if (raw) {
-        const existing = JSON.parse(raw) as { background?: unknown };
+        const existing = JSON.parse(raw) as {
+          background?: unknown;
+          proudPoint?: unknown;
+          reviewSummary?: unknown;
+          reviewCorrection?: unknown;
+        };
         if (typeof existing.background === "string" && existing.background.trim()) {
           background = existing.background;
         }
+        if (typeof existing.proudPoint === "string" && existing.proudPoint.trim()) {
+          proudPoint = existing.proudPoint;
+        }
+        if (typeof existing.reviewSummary === "string" && existing.reviewSummary.trim()) {
+          reviewSummary = existing.reviewSummary;
+        }
+        if (typeof existing.reviewCorrection === "string" && existing.reviewCorrection.trim()) {
+          reviewCorrection = existing.reviewCorrection;
+        }
       }
     } catch {
-      // ignore — treat as no background
+      // ignore — treat as no prior intake state
     }
 
-    const payload = { profile, background, answers };
+    const payload = {
+      profile,
+      background,
+      proudPoint,
+      reviewSummary,
+      reviewCorrection,
+      answers,
+    };
     try {
       sessionStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
     } catch {

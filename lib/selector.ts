@@ -14,6 +14,11 @@ export type SelectorTag = (typeof SELECTOR_TAGS)[number];
 export const SelectorItemSchema = z.object({
   unitNumber: z.number().int().positive(),
   tag: z.enum(SELECTOR_TAGS),
+  // Amendment 5 Change 4.1: a short phrase naming the specific
+  // assessment finding this unit addresses (an exposedWork.work entry,
+  // a defensibleWork entry, or a brief skip reason). Rendered as its
+  // own "Addresses:" line on the menu — see app/onboard/plans.
+  addressesFinding: z.string().min(1),
   rationale: z.string().min(1),
   orderIndex: z.number().int().nonnegative(),
 });

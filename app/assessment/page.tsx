@@ -47,12 +47,14 @@ export default async function AssessmentPage() {
 
   const assessment: Assessment = {
     occupationLabel: latest.occupationLabel,
+    inputDepth: latest.inputDepth as Assessment["inputDepth"],
+    inputDepthNote: latest.inputDepthNote,
     scoreToday: latest.scoreToday,
     scoreProjected: latest.scoreProjected,
     scoreWithPlan: latest.scoreWithPlan,
     factors: latest.factors as Assessment["factors"],
-    exposedTasks: latest.exposedTasks,
-    defensibleTasks: latest.defensibleTasks,
+    exposedWork: latest.exposedWork as Assessment["exposedWork"],
+    defensibleWork: latest.defensibleWork,
     reasoning: latest.reasoning,
   };
 

@@ -10,6 +10,9 @@ const STORAGE_KEY = "careerpilot:onboarding";
 interface StoredPayload {
   profile?: string;
   background?: string;
+  proudPoint?: string;
+  reviewSummary?: string;
+  reviewCorrection?: string;
   answers?: Record<string, string>;
 }
 
@@ -17,6 +20,11 @@ interface BackgroundIntakeProps {
   profile: ProfileId;
 }
 
+// Amendment 5 §5a.1: Skip is no longer offered here — the skip framing
+// moved to /onboard/proud. Background is the foundational context for
+// every later step (review summary, assessment, selector), so the user
+// is asked to share something. If they truly have nothing to paste they
+// can still write a sentence or two.
 export function BackgroundIntake({ profile }: BackgroundIntakeProps) {
   const router = useRouter();
   const [background, setBackground] = useState("");
@@ -37,8 +45,11 @@ export function BackgroundIntake({ profile }: BackgroundIntakeProps) {
     }
   }, []);
 
-  function persistAndContinue(text: string) {
-    const trimmed = text.trim();
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const trimmed = background.trim();
+    if (!trimmed) return;
+
     let existing: StoredPayload = {};
     try {
       const raw = sessionStorage.getItem(STORAGE_KEY);
@@ -50,24 +61,17 @@ export function BackgroundIntake({ profile }: BackgroundIntakeProps) {
     const payload: StoredPayload = {
       ...existing,
       profile,
-      background: trimmed || undefined,
+      background: trimmed,
     };
     try {
       sessionStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
     } catch {
-      // ignore — questionnaire will re-write
+      // ignore — downstream screens will re-write
     }
-    router.push(`/onboard/questions?profile=${profile}`);
+    router.push(`/onboard/proud?profile=${profile}`);
   }
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    persistAndContinue(background);
-  }
-
-  function handleSkip() {
-    persistAndContinue("");
-  }
+  const canContinue = background.trim().length > 0;
 
   return (
     <main className="flex min-h-screen items-center justify-center px-4 py-12">
@@ -108,27 +112,16 @@ export function BackgroundIntake({ profile }: BackgroundIntakeProps) {
             Pasted text only — not a URL or a link.
           </p>
 
-          <div className="mt-8 flex items-center justify-between">
-            <button
-              type="button"
-              onClick={handleSkip}
-              className="text-sm text-gray-600 underline underline-offset-4 transition hover:text-gray-900"
-            >
-              Skip for now
-            </button>
+          <div className="mt-8 flex items-center justify-end">
             <button
               type="submit"
-              className="rounded-md bg-black px-5 py-2.5 text-sm font-medium text-white transition hover:opacity-90"
+              disabled={!canContinue}
+              className="rounded-md bg-black px-5 py-2.5 text-sm font-medium text-white transition hover:opacity-90 disabled:opacity-40"
             >
               Continue
             </button>
           </div>
         </form>
-
-        <p className="mt-6 text-xs text-gray-500">
-          Skipping is fine — but your assessment will be less precise without
-          some context about your work.
-        </p>
       </div>
     </main>
   );

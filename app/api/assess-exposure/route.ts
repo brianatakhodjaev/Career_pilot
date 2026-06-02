@@ -15,6 +15,11 @@ import { AssessmentSchema, type Assessment } from "@/lib/assessment";
 // stretch the tail. Vercel Pro caps at 60s on the default runtime.
 export const maxDuration = 60;
 
+// Amendment 5: request gains proudPoint and reviewCorrection (both
+// optional). The user upsert persists those alongside background and
+// answers so the full intake is durable; the assessment write uses the
+// new RiskAssessment columns (inputDepth, inputDepthNote, exposedWork
+// Json, defensibleWork String[]).
 const RequestSchema = z.object({
   profileType: z.enum(["veteran", "threatened", "starter"]),
   answers: z.record(z.string(), z.string()).refine((a) => Object.keys(a).length >= 3, {
@@ -22,6 +27,9 @@ const RequestSchema = z.object({
   }),
   linkedInUrl: z.string().url().optional(),
   resumeText: z.string().min(20).max(20000).optional(),
+  proudPoint: z.string().min(1).max(5000).optional(),
+  reviewSummary: z.string().min(1).max(10000).optional(),
+  reviewCorrection: z.string().min(1).max(5000).optional(),
 });
 
 function extractText(response: Anthropic.Messages.Message): string {
@@ -58,21 +66,48 @@ export async function POST(request: Request) {
     );
   }
 
-  const { profileType, answers, linkedInUrl, resumeText } = parsed.data;
+  const {
+    profileType,
+    answers,
+    linkedInUrl,
+    resumeText,
+    proudPoint,
+    reviewSummary,
+    reviewCorrection,
+  } = parsed.data;
 
   // Upsert the profile BEFORE the Claude call so the FK target for
-  // RiskAssessment exists, and so the profile is persisted even if Claude
-  // fails and the user retries.
+  // RiskAssessment exists, and so the full intake is persisted even if
+  // Claude fails and the user retries.
   await prisma.userProfile.upsert({
     where: { userId },
-    update: { profileType, linkedInUrl, resumeText, answers },
-    create: { userId, profileType, linkedInUrl, resumeText, answers },
+    update: {
+      profileType,
+      linkedInUrl,
+      resumeText,
+      proudPoint,
+      reviewSummary,
+      reviewCorrection,
+      answers,
+    },
+    create: {
+      userId,
+      profileType,
+      linkedInUrl,
+      resumeText,
+      proudPoint,
+      reviewSummary,
+      reviewCorrection,
+      answers,
+    },
   });
 
   const background = resumeText ?? linkedInUrl ?? "not provided";
   const userMessage = [
     `Profile type: ${profileType}.`,
     `Current role / background: ${background}.`,
+    `Pride-point: ${proudPoint ?? "not provided"}.`,
+    `Review correction: ${reviewCorrection ?? "not provided"}.`,
     `Questionnaire answers: ${JSON.stringify(answers)}.`,
   ].join("\n");
 
@@ -107,12 +142,14 @@ export async function POST(request: Request) {
     data: {
       userId,
       occupationLabel: assessment.occupationLabel,
+      inputDepth: assessment.inputDepth,
+      inputDepthNote: assessment.inputDepthNote,
       scoreToday: assessment.scoreToday,
       scoreProjected: assessment.scoreProjected,
       scoreWithPlan: assessment.scoreWithPlan,
       factors: assessment.factors,
-      exposedTasks: assessment.exposedTasks,
-      defensibleTasks: assessment.defensibleTasks,
+      exposedWork: assessment.exposedWork,
+      defensibleWork: assessment.defensibleWork,
       reasoning: assessment.reasoning,
     },
   });

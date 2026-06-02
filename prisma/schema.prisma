@@ -11,16 +11,19 @@ datasource db {
 }
 
 model UserProfile {
-  id          String           @id @default(cuid())
-  userId      String           @unique
-  profileType String // veteran | threatened | starter
-  linkedInUrl String?
-  resumeText  String?
-  answers     Json // questionnaire answers
-  createdAt   DateTime         @default(now())
-  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  plans       CareerPlan[]
-  assessments RiskAssessment[]
+  id               String           @id @default(cuid())
+  userId           String           @unique
+  profileType      String // veteran | threatened | starter
+  linkedInUrl      String?
+  resumeText       String?
+  proudPoint       String? // optional pride-point text (Amendment 5 §5a.2)
+  reviewSummary    String? // AI summary the user saw on /onboard/review (Amendment 5 §5a.3)
+  reviewCorrection String? // optional user correction on /onboard/review
+  answers          Json // questionnaire answers
+  createdAt        DateTime         @default(now())
+  user             User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plans            CareerPlan[]
+  assessments     RiskAssessment[]
 }
 
 // ---------- NextAuth (Auth.js v5) models ----------
@@ -81,12 +84,14 @@ model RiskAssessment {
   id              String      @id @default(cuid())
   userId          String
   occupationLabel String
+  inputDepth      String // "thin" | "moderate" | "rich" — Amendment 5 §6
+  inputDepthNote  String // visible calibration of what we had to work with
   scoreToday      Int
   scoreProjected  Int
   scoreWithPlan   Int
   factors         Json // [{ label, score, note }] x 5 — see kickoff §6
-  exposedTasks    String[]
-  defensibleTasks String[]
+  exposedWork     Json // [{ work, isSpecific, tools[], branchTo }] — Amendment 5
+  defensibleWork  String[]
   reasoning       String
   createdAt       DateTime    @default(now())
   profile         UserProfile @relation(fields: [userId], references: [userId])
