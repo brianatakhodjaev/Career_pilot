@@ -80,8 +80,9 @@ structure, Vercel config). Do NOT fork or import their domain code.
 ## 4. Onboarding flow
 
 ```
-profile selection → background intake → 5-question questionnaire
-→ initial AI exposure assessment → 3 career plans → confirm → dashboard
+profile selection → background intake → pride point (optional)
+→ summary and confirm → initial AI exposure assessment
+→ marked-up menu → confirm plate → dashboard
 ```
 
 Pages to build:
@@ -89,7 +90,9 @@ Pages to build:
 | Route | Purpose |
 |---|---|
 | `/onboard/profile` | Choose profile type: veteran / threatened / starter |
-| `/onboard/background` | Capture the user's role and background, in their own words |
+| `/onboard/background` | Paste the user's role and background text |
+| `/onboard/proud` | Optional: one piece of work the user is proud of |
+| `/onboard/review` | AI summary of how it understood the user; correct or confirm |
 | `/onboard/questions` | 5-question questionnaire, one per screen, progress bar |
 | `/onboard/assessment` | AI exposure assessment — the three-score reveal |
 | `/onboard/plans` | Display 3 AI-generated career paths, user selects one |
@@ -136,47 +139,71 @@ navigation. Answers stored in state, submitted together.
 
 ---
 
-## 5a. The background intake step
+## 5a. The intake — background, pride point, and review
 
-Route: `/onboard/background`. Runs immediately after profile selection and
-before the questionnaire. Its job is to capture enough of the user's real
-background that the assessment and plans are specific to them, not generic.
+The intake captures enough of the user's real situation that the assessment
+and curriculum are specific to them, and gives the user a chance to correct
+the system's understanding before anything substantial is produced. It runs
+across three short screens. Persistence is paste-only — see the deferred
+section on external-account integrations.
 
-The screen offers ONE text area, with helper text explaining the user can
-provide their background in whichever form is easiest:
-- a few sentences describing their current role and a project they are
-  proud of, or
-- their LinkedIn "About" / experience text, pasted in, or
-- their resume text, pasted in.
+### 5a.1 Background (/onboard/background)
 
-**Important:** the field accepts PASTED TEXT only — not a URL or a link.
-LinkedIn blocks automated reading and the app cannot fetch arbitrary resume
-links, so a pasted-link would produce nothing usable. The helper text must
-ask for pasted text explicitly and must not invite a URL.
+A single textarea. The user describes their work in whichever form is
+easiest: a short self-description, pasted LinkedIn "About" / experience text,
+or pasted resume text. Pasted text only — not a URL.
 
-Prompt wording on the screen (use this or close to it):
-> "Tell us about your work. Paste your LinkedIn About section, your resume,
-> or just describe your current role and a project you're proud of. The more
-> you share, the sharper your assessment."
+The screen states a short privacy line and links to /privacy.
 
-The step is **strongly encouraged but skippable.** A visible "Skip for now"
-link is present, but the primary action (Continue) is the visually dominant
-choice. The screen should make clear that skipping produces a less precise
-initial assessment.
+The text is held in state and persisted with the questionnaire answers when
+the intake completes.
 
-**Persistence.** The entered text is stored as `UserProfile.resumeText` (the
-field already exists in the §8 schema). The profile pick continues to ride
-as a URL param; background text + questionnaire answers are written together
-when the questionnaire submits, consistent with the existing URL-only /
-sessionStorage persistence pattern. No schema change, no migration.
+### 5a.2 Pride point (/onboard/proud)
 
-Both AI calls already accept this text:
-- §6 assess-exposure — already takes `resumeText` in its user message.
-- §7 generate-plans — already takes `Background` in its user message.
+A single optional textarea. One short prompt:
 
-So once `/onboard/background` is collecting the text and it flows through,
-both the assessment and the plans become materially more specific with no
-prompt changes required.
+  "Tell us about a piece of work in the last year you were genuinely proud
+   of. The more concrete, the sharper your assessment."
+
+This step is always shown but adaptively framed by the depth of the
+background text:
+
+- If the background was thin (a short paragraph, no specific projects), the
+  pride-point prompt is presented as the primary action. Skip is available
+  but visually quieter.
+- If the background was rich (already contains specific projects and
+  accomplishments), the pride-point screen says so plainly — for example,
+  "You've already shared a lot about your work. Anything specific to add?"
+  — and the skip option is prominent.
+
+The pride-point text, when provided, is stored on the UserProfile alongside
+the background.
+
+### 5a.3 Review (/onboard/review)
+
+After background (and the optional pride point), an AI call produces a short
+summary of how the system has understood the user — two to three paragraphs
+in plain language. Examples of what it covers: role and tenure, the specific
+work they do, the goal they have stated, the constraints they face. The
+summary is the system's interpretation, in its own voice, and explicitly
+invites correction.
+
+The screen presents:
+- The AI's summary, prominent.
+- One optional textarea: "Anything to correct or add?" — for the user to fix
+  misreadings.
+- A primary action: "Looks right — produce my assessment."
+
+The correction text, when provided, is appended to the background context
+that flows into the assessment call (it does not replace the original
+background; both flow through).
+
+The review step uses a dedicated, short AI call. Its system prompt instructs
+the model to summarize honestly — including being honest when the input was
+thin ("Based on what you've shared so far, here is what I understand...").
+
+This step is not skippable — every user sees their summary before the
+assessment runs. It is the heart of the intake-as-conversation principle.
 
 ---
 
@@ -236,49 +263,92 @@ work. You assess how exposed a person's current role is to AI automation,
 using the distinction between observed exposure (what AI already does in the
 role) and theoretical exposure (what it could do within 2-3 years).
 
-Reason about the user's SPECIFIC tasks, not just their job title. Be honest
-but never alarmist — exposure is task-level, not person-level, and exposure
-is not unemployment.
-
 The "profile type" you receive (veteran / threatened / starter) is a coarse
 onboarding segment label, NOT a biographical fact. Do not infer military
 service, life history, or specific experience from it. Reason only from the
-background text and questionnaire answers the user actually provided; if
-background is thin, keep the assessment general rather than inventing
-specifics.
+background text, the pride-point text (if provided), and the questionnaire
+answers the user actually provided.
+
+Be honest but never alarmist — exposure is task-level, not person-level, and
+exposure is not unemployment.
 
 Your score is an evidence-based estimate, not an exact measurement. Do not
-imply false precision. The factor breakdown must make the score explainable:
-the user should understand WHY they scored as they did.
+imply false precision.
 
-All scores — scoreToday, scoreProjected, scoreWithPlan, and each factor
-score — MUST be whole-number integers from 0 to 10 inclusive. Do not use
-decimals.
+INPUT DEPTH — judge it first.
 
-Score these five fixed factors, each 0-10, where 10 means AI can already
-perform most of that dimension of the user's work:
+Classify the user's input as one of:
+- "thin": short or vague — e.g. a one-paragraph self-description with no
+  specific projects, tools, or accomplishments.
+- "moderate": real role description with some specifics.
+- "rich": detailed background with named projects, tools, and concrete
+  accomplishments.
+
+The depth determines how specific your output should be. This is a hard
+rule, not a guideline:
+
+- If thin: exposedWork.work entries must be ROLE-TYPICAL patterns, not
+  invented specifics. Set isSpecific=false. The reasoning must plainly
+  acknowledge that the assessment is based on common patterns for this role.
+  The inputDepthNote must visibly invite the user to share more.
+- If moderate: mix specific and general. Mark each exposedWork item
+  honestly with isSpecific.
+- If rich: name the user's ACTUAL work back to them in exposedWork.work.
+  Set isSpecific=true. The reasoning can reference specific things the user
+  mentioned. The inputDepthNote can be a brief acknowledgment.
+
+NEVER invent specifics the user did not provide. Generality is the correct
+behavior when input is thin.
+
+FIVE FIXED FACTORS — score each 0-10, where 10 means AI can already perform
+most of that dimension of the user's work:
 - "Routine and repeatable tasks"
 - "Content and analysis generation"
 - "Judgment in ambiguous situations"
 - "Relationship and trust dependence"
 - "Physical and on-site work"
-For each factor, give a one-sentence note explaining that score for THIS user.
+For each factor, give a one-sentence note explaining that score.
 
-exposedTasks MUST contain exactly 3 to 4 items — the user's tasks most
-exposed to AI automation. defensibleTasks MUST contain exactly 3 to 4 items
-— tasks that remain genuinely human. Do not exceed 4 items in either array.
+EXPOSED WORK — for each of 3-4 exposed work items:
+- `work`: the work itself (specific to the user when input allows; otherwise
+  role-typical).
+- `isSpecific`: true if drawn from the user's actual input.
+- `tools`: 1-3 representative tools that already automate or enhance this
+  work. Be representative, not exhaustive. Phrase as a category example,
+  not a vendor endorsement: "tools like Gamma or Beautiful.ai" — not
+  "use Gamma."
+- `branchTo`: one adjacent area of work that is less AI-exposed and that a
+  professional in this role could plausibly move toward.
+
+DEFENSIBLE WORK — 3-4 areas of the user's work that remain genuinely human.
+
+REASONING — 2-3 sentences, constructive, honest. If input was thin, say so
+here too.
+
+All scores — scoreToday, scoreProjected, scoreWithPlan, and each factor
+score — MUST be whole-number integers from 0 to 10 inclusive. Do not use
+decimals.
 
 Return ONLY valid JSON, no markdown, with this structure:
 {
   "occupationLabel": string,
+  "inputDepth": "thin" | "moderate" | "rich",
+  "inputDepthNote": string,
   "scoreToday": number,
   "scoreProjected": number,
   "scoreWithPlan": number,
   "factors": [
     { "label": string, "score": number, "note": string }
   ],
-  "exposedTasks": string[],
-  "defensibleTasks": string[],
+  "exposedWork": [
+    {
+      "work": string,
+      "isSpecific": boolean,
+      "tools": [string],
+      "branchTo": string
+    }
+  ],
+  "defensibleWork": string[],
   "reasoning": string
 }
 ```
@@ -287,8 +357,24 @@ User message:
 ```
 Profile type: {profileType}.
 Current role / background: {linkedInText or resumeText or 'not provided'}.
+Pride-point: {proudPointText or 'not provided'}.
+Review correction: {reviewCorrectionText or 'not provided'}.
 Questionnaire answers: {JSON.stringify(answers)}.
 ```
+
+### Assessment screen revisions
+
+The `/onboard/assessment` screen renders the new structure:
+
+- The `inputDepthNote` is rendered prominently when `inputDepth` is "thin"
+  (as a callout that invites the user to add more) and more subtly when
+  "moderate" or "rich."
+- The `exposedWork` section shows each item as a small card: the work, the
+  representative tools ("Tools that automate or enhance this: Gamma,
+  Beautiful.ai, Tome"), and the branch suggestion ("Less exposed adjacent
+  work: facilitating the strategic conversation the deck supports").
+- The §13 design principles still govern ordering: defensible work first,
+  then the factor breakdown, then the scores, then the constructive path.
 
 ---
 
@@ -305,17 +391,24 @@ user:
   and background.
 - For each buffet unit, it assigns a tag: `core` / `later` / `skip`.
 - It writes a one-line rationale per unit, tying that unit to the user's
-  goal.
+  goal. Per Amendment 5 Change 4.1, the rationale MUST explicitly cite one
+  or more items from the assessment — typically a specific
+  `exposedWork.work` entry or a `defensibleWork` entry. The rationale is a
+  connector between assessment and curriculum, not a standalone sentence.
+  Example of the rationale style required:
+  > "This addresses the routine reporting and dashboard updates flagged in
+  > your assessment — specifically learning to direct AI tools rather than
+  > compete with them. Foundation for the verification work in Unit 5."
 - It produces an ordering and a pacing (units per week) consistent with the
   user's stated weekly time.
 - Unit content comes only from the buffet — never invented.
 
-The output is a marked-up menu (§14.2 / §11 step 11), not three invented
+The output is a marked-up menu (§14.2 / §11 step 13), not three invented
 plans. The "exactly 3 plans" structure is retired.
 
 The system prompt and JSON shape below are the legacy invention-mode prompt
 from pre-Amendment 3. They will be redrafted to selector mode when §11
-step 10 is rebuilt against this amendment.
+step 12 is rebuilt against this amendment and Amendment 5.
 
 ### Claude API call — `POST /api/generate-plans`
 
@@ -563,36 +656,62 @@ copy, and field-test recruitment target the **Threatened** profile (mid-career,
 5. Build `/onboard/profile` — three large clickable cards (icon, title, two-line
    description) for veteran / threatened / starter.
 6. Build `/onboard/background` — single text area capturing the user's role
-   and background in their own words, per §5a. Dominant "Continue" action;
-   visible but secondary "Skip for now" link. Pasted text only — no URL
-   field. Entered text is held in state and submitted alongside the
-   questionnaire answers.
-7. Build `/onboard/questions` — progress bar, 5 questions one per screen,
+   and background in their own words, per §5a.1. Pasted text only — no URL
+   field. Short privacy line linking to `/privacy`. Entered text is held in
+   state and submitted alongside the questionnaire answers and the optional
+   pride-point text on intake completion.
+7. Build `/onboard/proud` — a single optional textarea per §5a.2. The
+   screen's framing adapts to background depth (primary action when
+   background was thin; prominent skip when background was rich). The text
+   is held in state and persisted with the questionnaire on intake
+   completion.
+8. Build `/onboard/review` per §5a.3 — runs a dedicated short AI call
+   producing a 2–3 paragraph summary of the system's understanding of the
+   user. Renders the summary, an optional correction textarea, and a
+   primary "Looks right — produce my assessment" action. Not skippable.
+   The correction text, when provided, is appended to the background
+   context flowing into the assessment call (does not replace the
+   original background).
+9. Build `/onboard/questions` — progress bar, 5 questions one per screen,
    back/next, answers held in state.
-8. Build `POST /api/assess-exposure` using the section 6 spec.
-9. Build `/onboard/assessment` — initial assessment screen with the §6
-   reframe (title "Your initial assessment", expectation line beneath),
-   defensible content first, five-factor breakdown, three score gauges,
-   exposed vs defensible task columns, and the constructive path including
-   the §13 principle 7 refinement path. Must follow §13 design principles.
-10. Build `POST /api/generate-plans` as the **selector** (§7 post-Amendment 3
+10. Build `POST /api/assess-exposure` using the section 6 spec — including
+    the Amendment-5 expanded JSON shape (`inputDepth`, `inputDepthNote`,
+    `exposedWork[]` with `work` / `isSpecific` / `tools` / `branchTo`,
+    `defensibleWork`), and the updated system prompt that classifies input
+    depth and adapts specificity accordingly.
+11. Build `/onboard/assessment` — initial assessment screen rendering the
+    expanded §6 shape: the `inputDepthNote` callout (prominent when
+    `inputDepth` is "thin", subtle when "moderate" or "rich"); then,
+    ordered per §13, defensible work first, the five-factor breakdown,
+    the three score gauges, the `exposedWork` cards (each card naming the
+    work, the representative tools that automate or enhance it, and the
+    adjacent less-exposed branch suggestion), and the constructive path
+    including the §13 principle 7 refinement path. Must follow §13 design
+    principles, including principle 10 (depth in, depth out).
+12. Build `POST /api/generate-plans` as the **selector** (§7 post-Amendment 3
     / §14.2). Receives the buffet alongside profile / answers / assessment /
     background; tags each `BuffetUnit` as `core` / `later` / `skip` with a
-    one-line rationale; produces an ordering and pacing. Does NOT invent
-    units. (Replaces the legacy three-plan invention prompt — that earlier
+    one-line rationale that visibly cites a specific `exposedWork` or
+    `defensibleWork` finding from the assessment (per Amendment 5 Change
+    4.1); produces an ordering and pacing. Does NOT invent units.
+    (Replaces the legacy three-plan invention prompt — that earlier
     implementation is rewired under Amendment 3, not removed clean.)
-11. Build `/onboard/plans` as the **menu** screen (§14.2). Renders the
+13. Build `/onboard/plans` as the **menu** screen (§14.2). Renders the
     selector's marked-up buffet for the user — every unit shown with its
-    tag and rationale — and lets the user re-tag units (move between
-    `core` / `later` / `skip`) before committing. Replaces the legacy
-    three-card pick.
-12. Build `/onboard/confirm` — render the adjusted menu as the user's
+    tag, rationale, and the assessment finding it addresses (an
+    "Addresses:" line or similar treatment per Amendment 5 Change 4.2:
+    prominent on Core units, lighter on Later units, a brief one-line
+    reason on Skip units) — and lets the user re-tag units (move between
+    `core` / `later` / `skip`) before committing. The two screens —
+    assessment and menu — should read as one connected story. Replaces
+    the legacy three-card pick.
+14. Build `/onboard/confirm` — render the adjusted menu as the user's
     **plate** (their active curriculum). Persist `CareerPlan` (the plate
     container) + a `PlateItem` row per `BuffetUnit` selection (with tag,
     rationale, and orderIndex from the selector, adjustable by the user).
     Mark the plate `isActive: true`; deactivate any prior plate. Route to
     `/dashboard`.
-13. Build `/dashboard` — header (plate title + current week), three stat
+15. Build `/dashboard` — header (plate title + current week), three stat
     cards (plate progress, day streak, minutes logged), and a "What
     you're working on" area showing each core `PlateItem` as a clickable
     card linking to its lesson at `/learn/[unitNumber]`. Cards show
@@ -605,7 +724,7 @@ copy, and field-test recruitment target the **Threatened** profile (mid-career,
     and `/onboard/background`. Must follow §13 design principles,
     including principles 8 and 9 (streak rules and curriculum
     re-pacing).
-14. Build `/learn/[unitNumber]` — the lesson-delivery screen per §15:
+16. Build `/learn/[unitNumber]` — the lesson-delivery screen per §15:
     stepped flow (why this matters → teaching → exercise → reflection
     → wrap-up), Start/Pause/Resume session timer on this screen, and
     the "Mark this unit complete" action that sets `PlateItem.completedAt`
@@ -707,6 +826,17 @@ These principles are binding on the assessment and dashboard UI.
    — it re-times. The streak rewards showing up (a completed unit OR a
    logged session of at least 10 minutes), not hitting a prescribed volume.
 
+10. **Depth in, depth out.** The assessment's specificity tracks the depth
+    of the user's input, honestly and visibly. When input is thin, the
+    assessment is general, says so plainly, and invites more. When input is
+    rich, the assessment names the user's actual work back to them. The
+    product never invents specifics the user did not provide. The user can
+    always feel the connection between what they shared and what they got
+    back. This principle is binding on the assessment and on every AI call
+    that follows it in the intake (the review summary, the selector). It
+    applies to the UI rendering as well — surface the `inputDepth` state,
+    do not hide it.
+
 ---
 
 ## 14. The learning buffet
@@ -725,10 +855,11 @@ sees the same library, marked up for them.
 
 1. **The buffet** — the curated library of skill units. Authored and
    maintained in-house. The asset and the moat.
-2. **The selector** — an AI call (§7 post-Amendment 3) that, given the user's
-   background and assessment, tags each unit (`core` / `later` / `skip`) and
-   writes a one-line rationale per unit explaining how it helps THAT user
-   reach THEIR goal.
+2. **The selector** — an AI call (§7 post-Amendment 3, refined by Amendment
+   5 Change 4.1) that, given the user's background and assessment, tags
+   each unit (`core` / `later` / `skip`) and writes a one-line rationale
+   per unit explaining how it helps THAT user reach THEIR goal. The
+   rationale must visibly cite the assessment finding it addresses.
 3. **The menu** — what the user sees: the full library, marked up for them,
    with rationale. The user can adjust the markup before committing.
 4. **The plate** — the curriculum the user commits to and tracks progress
