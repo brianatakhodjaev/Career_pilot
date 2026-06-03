@@ -77,6 +77,13 @@ export function AssessmentView() {
       return;
     }
 
+    // Hard upper bound on the fetch so a wedged dev server, stale browser
+    // chunk, or dropped socket can never trap the user on the spinner
+    // forever. 60s matches the route's maxDuration; the network-error
+    // branch surfaces a Try-again CTA if we hit it.
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), 60000);
+
     fetch("/api/assess-exposure", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -88,6 +95,7 @@ export function AssessmentView() {
         reviewSummary: payload.reviewSummary?.trim() || undefined,
         reviewCorrection: payload.reviewCorrection?.trim() || undefined,
       }),
+      signal: controller.signal,
     })
       .then((r) => r.json())
       .then((data: { success: boolean; data?: Assessment; error?: string }) => {
@@ -109,10 +117,15 @@ export function AssessmentView() {
       .catch(() => {
         if (cancelled) return;
         setError("network");
+      })
+      .finally(() => {
+        window.clearTimeout(timeoutId);
       });
 
     return () => {
       cancelled = true;
+      window.clearTimeout(timeoutId);
+      controller.abort();
     };
     // `assessment` deliberately not in deps — it's an OUTPUT of this effect,
     // not an input. Including it caused an infinite re-render loop:

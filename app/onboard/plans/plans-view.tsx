@@ -99,6 +99,13 @@ export function PlansView() {
       return;
     }
 
+    // Hard upper bound on the fetch so a wedged dev server, stale browser
+    // chunk, or dropped socket can never trap the user on the spinner
+    // forever. 60s matches the route's maxDuration; the network-error
+    // branch surfaces a Try-again CTA if we hit it.
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), 60000);
+
     fetch("/api/generate-plans", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -108,6 +115,7 @@ export function PlansView() {
         assessment: payload.assessment,
         background: payload.background?.trim() || undefined,
       }),
+      signal: controller.signal,
     })
       .then((r) => r.json())
       .then(
@@ -144,10 +152,15 @@ export function PlansView() {
       .catch(() => {
         if (cancelled) return;
         setError("network");
+      })
+      .finally(() => {
+        window.clearTimeout(timeoutId);
       });
 
     return () => {
       cancelled = true;
+      window.clearTimeout(timeoutId);
+      controller.abort();
     };
   }, [retryNonce]);
 
