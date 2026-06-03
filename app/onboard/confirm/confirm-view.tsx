@@ -75,6 +75,13 @@ export function ConfirmView() {
     setSubmitting(true);
     setError(null);
 
+    // Hard upper bound on the fetch so a wedged dev server, stale browser
+    // chunk, or dropped socket can never leave the button stuck on
+    // "Saving..." forever. 60s is generous for a simple DB write; the
+    // network-error branch already surfaces a Try-again CTA if we hit it.
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), 60000);
+
     try {
       const res = await fetch("/api/plates/confirm", {
         method: "POST",
@@ -84,6 +91,7 @@ export function ConfirmView() {
           pacing: selector.pacing,
           items: selector.items,
         }),
+        signal: controller.signal,
       });
       const data = (await res.json()) as {
         success: boolean;
@@ -99,6 +107,8 @@ export function ConfirmView() {
     } catch {
       setError("network");
       setSubmitting(false);
+    } finally {
+      window.clearTimeout(timeoutId);
     }
   }
 
