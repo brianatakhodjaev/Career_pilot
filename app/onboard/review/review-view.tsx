@@ -82,6 +82,13 @@ export function ReviewView({ profile }: ReviewViewProps) {
       return;
     }
 
+    // Hard upper bound on the fetch so a wedged dev server, stale browser
+    // chunk, or dropped socket can never trap the user on the spinner
+    // forever. 60s matches the route's maxDuration; the network-error
+    // branch below surfaces a Try-again CTA if we hit it.
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), 60000);
+
     fetch("/api/review-summary", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -90,6 +97,7 @@ export function ReviewView({ profile }: ReviewViewProps) {
         background: payload.background?.trim() || undefined,
         proudPoint: payload.proudPoint?.trim() || undefined,
       }),
+      signal: controller.signal,
     })
       .then((r) => r.json())
       .then((data: { success: boolean; data?: { summary: string }; error?: string }) => {
@@ -112,10 +120,15 @@ export function ReviewView({ profile }: ReviewViewProps) {
       .catch(() => {
         if (cancelled) return;
         setError("network");
+      })
+      .finally(() => {
+        window.clearTimeout(timeoutId);
       });
 
     return () => {
       cancelled = true;
+      window.clearTimeout(timeoutId);
+      controller.abort();
     };
   }, [retryNonce]);
 
