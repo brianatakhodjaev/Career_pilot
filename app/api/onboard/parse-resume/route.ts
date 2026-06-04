@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import type Anthropic from "@anthropic-ai/sdk";
+import { auth } from "@/auth";
 import {
   CLAUDE_HAIKU_MODEL,
   getAnthropicClient,
@@ -81,6 +82,19 @@ function classifyByName(name: string): AllowedExt | null {
 }
 
 export async function POST(request: Request) {
+  // Auth gate — matches the pattern used by every other /api route.
+  // The /onboard/background page is already auth-gated server-side, so
+  // the UI never reaches this route without a session, but the API
+  // itself needs the gate too (each call can trigger a Haiku request,
+  // small DoS / cost vector if left open).
+  const session = await auth();
+  if (!session?.user?.id) {
+    return NextResponse.json(
+      { success: false, error: "Unauthorized" },
+      { status: 401 },
+    );
+  }
+
   let formData: FormData;
   try {
     formData = await request.formData();
@@ -168,10 +182,17 @@ async function extractDocx(file: File): Promise<string> {
 }
 
 async function extractPdf(file: File): Promise<string> {
-  const buffer = await file.arrayBuffer();
+  // pdfjs-dist's getDocument({ data: ... }) takes ownership of the
+  // Uint8Array's underlying ArrayBuffer and detaches it. We need to
+  // hand a DISPOSABLE copy to the local extractor so the Haiku
+  // escalation path still has a usable buffer if local fails. Without
+  // .slice(), Buffer.from(...) inside extractPdfViaHaiku throws
+  // "Cannot perform Construct on a detached ArrayBuffer" and Haiku is
+  // never actually called for scanned PDFs.
+  const bytes = new Uint8Array(await file.arrayBuffer());
 
   // Tier 1: local extraction via pdfjs-dist (Node-safe legacy build).
-  const localText = await extractPdfLocal(buffer);
+  const localText = await extractPdfLocal(bytes.slice());
   if (localText.trim().length >= LOCAL_PDF_SUFFICIENT_CHARS) {
     return localText;
   }
@@ -180,13 +201,34 @@ async function extractPdf(file: File): Promise<string> {
   console.log(
     `[parse-resume] local PDF text was ${localText.trim().length} chars; escalating to Haiku`,
   );
-  return extractPdfViaHaiku(buffer);
+  return extractPdfViaHaiku(bytes);
 }
 
-async function extractPdfLocal(buffer: ArrayBuffer): Promise<string> {
+async function extractPdfLocal(bytes: Uint8Array): Promise<string> {
   const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
+
+  // pdfjs-dist v6 in a Node/serverless context defaults to a "fake
+  // worker" path that does `await import(this.workerSrc)` with
+  // /*webpackIgnore: true*/ — Turbopack doesn't emit the worker chunk
+  // under that ignore, so the fallback throws "Setting up fake worker
+  // failed: Cannot find module 'pdf.worker.mjs'" and local extraction
+  // never returns. The v6 escape hatch (PDFWorker._setupFakeWorkerGlobal
+  // → globalThis.pdfjsWorker check) lets us pre-load the worker module
+  // ourselves so the bundler picks it up via a normal import; pdfjs
+  // then uses it directly and never tries the dynamic-import fallback.
+  const g = globalThis as { pdfjsWorker?: unknown };
+  if (!g.pdfjsWorker) {
+    // No type declarations for the worker module; we only need it to
+    // exist on globalThis with a .WorkerMessageHandler export — pdfjs
+    // reaches in by name.
+    g.pdfjsWorker = await import(
+      // @ts-expect-error — pdfjs-dist ships no .d.ts for the worker module
+      "pdfjs-dist/legacy/build/pdf.worker.mjs"
+    );
+  }
+
   const loadingTask = pdfjs.getDocument({
-    data: new Uint8Array(buffer),
+    data: bytes,
     // Suppress pdfjs console chatter on malformed PDFs.
     verbosity: 0,
   });
@@ -205,8 +247,8 @@ async function extractPdfLocal(buffer: ArrayBuffer): Promise<string> {
   return parts.join("\n\n");
 }
 
-async function extractPdfViaHaiku(buffer: ArrayBuffer): Promise<string> {
-  const base64 = Buffer.from(buffer).toString("base64");
+async function extractPdfViaHaiku(bytes: Uint8Array): Promise<string> {
+  const base64 = Buffer.from(bytes).toString("base64");
   const anthropic = getAnthropicClient();
   const response = await anthropic.messages.create({
     model: CLAUDE_HAIKU_MODEL,
