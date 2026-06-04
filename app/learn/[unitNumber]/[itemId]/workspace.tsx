@@ -325,10 +325,15 @@ function DeepenTaskCard({
   async function backToScaffolded() {
     setResetting(true);
     try {
+      // Polish fix (Stage 3 walk): full wipe of WorkspaceState
+      // (selectedTaskId, currentPrompt, promptHistory, customTask) but
+      // resetProgress=false so the user's LessonItemProgress on this
+      // exercise item is left alone — they're escaping the variation,
+      // not asking to redo the exercise.
       await fetch("/api/workspace/reset", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ plateItemId, itemId }),
+        body: JSON.stringify({ plateItemId, itemId, resetProgress: false }),
       });
       window.location.reload();
     } catch {
@@ -346,7 +351,13 @@ function DeepenTaskCard({
         <p className="text-xs font-medium text-gray-500">
           {customTask.audience}
         </p>
-        <p className="mt-1 text-sm text-gray-800">{customTask.task}</p>
+        {/* Polish fix (Stage 3 walk): render through MarkdownView so
+            generated tasks containing **bold**, lists, etc. format
+            properly. Without this, "**Round 1 (3-4 minutes):**" shows
+            as raw asterisks. */}
+        <div className="mt-1">
+          <MarkdownView text={customTask.task} formatted={true} />
+        </div>
       </div>
       <button
         type="button"
