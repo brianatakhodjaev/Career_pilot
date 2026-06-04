@@ -216,6 +216,20 @@ model UserSettings {
   user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
+// Append-only audit + rate-limit log for the workspace AI backend.
+// One row per /api/workspace/run call. Rate limit query counts rows in
+// a rolling window (20/h, 100/d per user, see lib/workspace-rate-limit).
+// Also doubles as the cost-tracking audit trail.
+model WorkspaceRunLog {
+  id          String   @id @default(cuid())
+  userId      String
+  plateItemId String
+  itemId      String
+  createdAt   DateTime @default(now())
+
+  @@index([userId, createdAt])
+}
+
 model LearningSession {
   id          String     @id @default(cuid())
   planId      String

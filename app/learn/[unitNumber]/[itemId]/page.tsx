@@ -4,6 +4,8 @@ import { prisma } from "@/lib/prisma";
 import { parseLessonContent } from "@/lib/lesson-content";
 import { ensurePlateItemStarted } from "@/lib/lesson-entry";
 import type { ItemState } from "@/lib/lesson-status";
+import { parseHistory } from "@/lib/workspace-history";
+import { readLatestReflectionsByPrompt } from "@/lib/reflection";
 import { ItemView } from "./item-view";
 
 interface PageProps {
@@ -63,8 +65,6 @@ export default async function LearnItemPage({ params }: PageProps) {
     where: { plateItemId_itemId: { plateItemId: plateItem.id, itemId } },
     select: { status: true },
   });
-  // status is `String` in the schema; narrow to ItemState defensively.
-  // Anything unexpected falls back to "not_started" so the UI still renders.
   const rawStatus = existingProgress?.status ?? null;
   const currentState: ItemState =
     rawStatus === "in_progress" ||
@@ -72,6 +72,32 @@ export default async function LearnItemPage({ params }: PageProps) {
     rawStatus === "got_it"
       ? rawStatus
       : "not_started";
+
+  // Stage 2: load workspace + reflection state for hydration. Both
+  // queries are cheap and only fire for the item kinds that need them,
+  // but for code simplicity we always fetch and let the client component
+  // ignore irrelevant fields.
+  const workspaceState =
+    item.kind === "exercise"
+      ? await prisma.workspaceState.findUnique({
+          where: { plateItemId_itemId: { plateItemId: plateItem.id, itemId } },
+          select: {
+            selectedTaskId: true,
+            currentPrompt: true,
+            promptHistory: true,
+          },
+        })
+      : null;
+
+  const reflectionAnswers =
+    item.id === "reflect"
+      ? await readLatestReflectionsByPrompt(plateItem.id)
+      : new Map();
+
+  const initialReflectionAnswers: Record<string, string> = {};
+  for (const [prompt, row] of reflectionAnswers) {
+    initialReflectionAnswers[prompt] = row.answer;
+  }
 
   return (
     <ItemView
@@ -83,6 +109,12 @@ export default async function LearnItemPage({ params }: PageProps) {
       goingDeeper={content.goingDeeper}
       reflectionPrompts={content.reflectionPrompts}
       initialState={currentState}
+      workspaceInitial={{
+        selectedTaskId: workspaceState?.selectedTaskId ?? null,
+        currentPrompt: workspaceState?.currentPrompt ?? "",
+        history: parseHistory(workspaceState?.promptHistory ?? []),
+      }}
+      reflectionInitial={initialReflectionAnswers}
     />
   );
 }

@@ -149,7 +149,7 @@ const UNIT_01: UnitSeed = {
         required: true,
         kind: "wrap",
         reading:
-          "Take 60 seconds with the prompts below. In a future revision your answers will be saved so you can see how your thinking changes across units; for now, just take them honestly to yourself.",
+          "Take 60 seconds with the prompts below. Your answers are saved automatically and surface in your longitudinal view so you can see how your thinking changes across units.",
         exercise: null,
         selfTest: ["I've reflected on the prompts above."],
         deeperPrompt: null,
