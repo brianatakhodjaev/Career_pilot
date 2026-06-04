@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Loader2, Play, Send, History as HistoryIcon } from "lucide-react";
+import { Loader2, Play, Send, History as HistoryIcon, Sparkles } from "lucide-react";
 import type { Exercise, ScaffoldedTask, ScaffoldedRound } from "@/lib/lesson-content";
 import type { HistoryEntry } from "@/lib/workspace-history";
+import { MarkdownView } from "@/lib/markdown";
 
 // Amendment 6 §15.4 — the in-app workspace.
 //
@@ -26,6 +27,10 @@ interface WorkspaceProps {
   initialSelectedTaskId: string | null;
   initialCurrentPrompt: string;
   initialHistory: HistoryEntry[];
+  // Amendment 6 Stage 3 — when set, the workspace renders this single
+  // AI-generated task instead of the scaffolded ones. Comes from
+  // /api/workspace/deepen.
+  customTask: { audience: string; task: string } | null;
   // Item-view passes a hook for "this exercise has produced at least
   // its first run on its last round" — used to decide when the
   // exercise-tail self-test should render in the parent.
@@ -48,10 +53,15 @@ export function Workspace({
   initialSelectedTaskId,
   initialCurrentPrompt,
   initialHistory,
+  customTask,
   onProgress,
 }: WorkspaceProps) {
+  const isDeepenMode = customTask !== null;
+  // In Deepen mode the task is fixed (the AI-generated one); we still
+  // hold a selectedTaskId locally for the autosave hook, but ignore it
+  // for rendering.
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(
-    initialSelectedTaskId,
+    isDeepenMode ? "deepen" : initialSelectedTaskId,
   );
   const [currentPrompt, setCurrentPrompt] = useState<string>(initialCurrentPrompt);
   const [history, setHistory] = useState<HistoryEntry[]>(initialHistory);
@@ -194,10 +204,9 @@ export function Workspace({
           roundId: activeRoundId,
         },
       ]);
-      // Workspace.tsx clears the prompt after a successful run — matches
-      // the /api/workspace/run server, which sets currentPrompt to null
-      // on history append.
-      setCurrentPrompt("");
+      // Stage 3 Bug 2 fix: preserve the prompt after Run. The server
+      // also no longer clears currentPrompt on history append, so the
+      // user can edit and re-run without retyping.
       setStreamingText("");
       setIsStreaming(false);
     } catch (err) {
@@ -221,12 +230,21 @@ export function Workspace({
 
   return (
     <div className="space-y-6">
-      <TaskPicker
-        tasks={exercise.scaffoldedTasks}
-        selectedTaskId={selectedTaskId}
-        onSelect={setSelectedTaskId}
-        disabled={isStreaming}
-      />
+      {isDeepenMode && customTask ? (
+        <DeepenTaskCard
+          customTask={customTask}
+          plateItemId={plateItemId}
+          itemId={itemId}
+          disabled={isStreaming}
+        />
+      ) : (
+        <TaskPicker
+          tasks={exercise.scaffoldedTasks}
+          selectedTaskId={selectedTaskId}
+          onSelect={setSelectedTaskId}
+          disabled={isStreaming}
+        />
+      )}
 
       {selectedTaskId && (
         <>
@@ -266,12 +284,20 @@ export function Workspace({
           />
 
           {canAdvanceToNextRound && (
-            <div>
+            // Stage 3 Bug 3 fix: full-width on mobile, larger
+            // vertical padding, top margin, and a subtitle line so the
+            // button reads as a deliberate next step instead of a
+            // quiet control. Hit-target ~doubles vs Stage 2.
+            <div className="mt-4 rounded-md border border-gray-300 bg-white p-4">
+              <p className="text-sm text-gray-700">
+                Round {userAdvancedToRoundIndex + 1} done — when ready,
+                draft a better-briefed Round {userAdvancedToRoundIndex + 2}.
+              </p>
               <button
                 type="button"
                 onClick={handleAdvanceRound}
                 disabled={isStreaming}
-                className="inline-flex items-center gap-2 rounded-md border border-black bg-white px-5 py-2.5 text-sm font-medium text-black transition hover:bg-gray-50 disabled:opacity-40"
+                className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-md border border-black bg-white px-5 py-3 text-sm font-medium text-black transition hover:bg-gray-50 disabled:opacity-40 sm:w-auto sm:min-w-48"
               >
                 Continue to Round {userAdvancedToRoundIndex + 2}
               </button>
@@ -279,6 +305,57 @@ export function Workspace({
           )}
         </>
       )}
+    </div>
+  );
+}
+
+function DeepenTaskCard({
+  customTask,
+  plateItemId,
+  itemId,
+  disabled,
+}: {
+  customTask: { audience: string; task: string };
+  plateItemId: string;
+  itemId: string;
+  disabled: boolean;
+}) {
+  const [resetting, setResetting] = useState(false);
+
+  async function backToScaffolded() {
+    setResetting(true);
+    try {
+      await fetch("/api/workspace/reset", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ plateItemId, itemId }),
+      });
+      window.location.reload();
+    } catch {
+      setResetting(false);
+    }
+  }
+
+  return (
+    <div>
+      <h3 className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-gray-500">
+        <Sparkles className="h-3 w-3" aria-hidden="true" />
+        Fresh variation
+      </h3>
+      <div className="mt-2 rounded-md border border-black bg-gray-50 p-4">
+        <p className="text-xs font-medium text-gray-500">
+          {customTask.audience}
+        </p>
+        <p className="mt-1 text-sm text-gray-800">{customTask.task}</p>
+      </div>
+      <button
+        type="button"
+        onClick={backToScaffolded}
+        disabled={disabled || resetting}
+        className="mt-2 text-xs text-gray-500 underline-offset-4 hover:text-gray-900 hover:underline disabled:opacity-50"
+      >
+        {resetting ? "Resetting…" : "Back to scaffolded tasks"}
+      </button>
     </div>
   );
 }
@@ -372,9 +449,9 @@ function PriorRoundsSummary({
                     {lastEntry.prompt}
                   </p>
                   <p className="mt-2 text-xs text-gray-500">Output:</p>
-                  <p className="mt-0.5 whitespace-pre-wrap rounded bg-gray-50 p-2 text-xs text-gray-800">
-                    {lastEntry.response}
-                  </p>
+                  <div className="mt-0.5 rounded bg-gray-50 p-2">
+                    <MarkdownView text={lastEntry.response} formatted={true} />
+                  </div>
                 </>
               ) : (
                 <p className="mt-1 text-xs italic text-gray-400">
@@ -463,21 +540,26 @@ function OutputArea({
       </div>
 
       {isStreaming && (
+        // Stage 3 Bug 1: while streaming, render plain whitespace-
+        // preserving text (incremental markdown parse on partial text
+        // jitters with half-closed bold and dangling list markers).
+        // The MarkdownView in formatted=false mode handles that.
         <div className="mt-2 rounded-md border border-gray-200 bg-white p-3">
-          <p className="whitespace-pre-wrap text-sm text-gray-800">
-            {streamingText || (
-              <span className="italic text-gray-400">Generating…</span>
-            )}
-            <span className="ml-1 inline-block h-3 w-2 animate-pulse bg-gray-700 align-middle" />
-          </p>
+          {streamingText ? (
+            <MarkdownView text={streamingText} formatted={false} />
+          ) : (
+            <p className="text-sm italic text-gray-400">Generating…</p>
+          )}
+          <span
+            className="ml-1 inline-block h-3 w-2 animate-pulse bg-gray-700 align-middle"
+            aria-hidden="true"
+          />
         </div>
       )}
 
       {!isStreaming && latest && (
-        <div className="mt-2 rounded-md border border-gray-200 bg-white p-3">
-          <p className="whitespace-pre-wrap text-sm text-gray-800">
-            {latest.response}
-          </p>
+        <div className="mt-2 rounded-md border border-gray-200 bg-white p-4">
+          <MarkdownView text={latest.response} formatted={true} />
         </div>
       )}
 
@@ -507,9 +589,9 @@ function OutputArea({
                     {h.prompt}
                   </p>
                   <p className="mt-2 text-xs font-medium text-gray-500">Output</p>
-                  <p className="mt-0.5 whitespace-pre-wrap text-xs text-gray-800">
-                    {h.response}
-                  </p>
+                  <div className="mt-0.5">
+                    <MarkdownView text={h.response} formatted={true} />
+                  </div>
                 </div>
               ))}
           </div>

@@ -114,11 +114,16 @@ export function TocView({
 
       <div className="mx-auto w-full max-w-3xl px-4 pt-10">
         {isAlreadyComplete && (
-          <div className="mb-8 rounded-md border border-gray-200 bg-gray-50 p-4 text-sm text-gray-700">
-            You&apos;ve completed this unit. Re-entry paths (Review / Repeat /
-            Deepen) ship in a later stage; for now you can walk any item
-            again — your dashboard status stays as <strong>complete</strong>.
-          </div>
+          <ReentryBanner
+            plateItemId={plateItemId}
+            unitNumber={unit.unitNumber}
+            firstReadItemId={
+              content.items.find((i) => i.kind === "read")?.id ?? null
+            }
+            exerciseItems={content.items.filter(
+              (i) => i.kind === "exercise" && i.exercise && i.deeperPrompt,
+            )}
+          />
         )}
 
         <section aria-labelledby="objectives-heading">
@@ -287,3 +292,229 @@ function kindLabel(kind: string): string {
   if (kind === "wrap") return "Wrap-up";
   return kind;
 }
+
+// Amendment 6 §15.8 — re-entry banner for completed units.
+//
+// Three paths:
+// - Review: navigation only (the user can click any item in the TOC
+//   below — already supported).
+// - Repeat: POST /api/workspace/reset for an exercise item; routes the
+//   user into that item with a fresh workspace.
+// - Deepen: POST /api/workspace/deepen for an exercise item; the
+//   route generates a new scaffolded task and resets history. We then
+//   navigate into the exercise item.
+//
+// Decision C — picker code path: when multiple exercise items exist,
+// open a small picker. With one exercise item (Unit 01) the picker
+// collapses to direct launch.
+function ReentryBanner({
+  plateItemId,
+  unitNumber,
+  firstReadItemId,
+  exerciseItems,
+}: {
+  plateItemId: string;
+  unitNumber: number;
+  firstReadItemId: string | null;
+  exerciseItems: LessonItem[];
+}) {
+  const router = useRouter();
+  const [busy, setBusy] = useState<null | "repeat" | "deepen">(null);
+  const [pickerMode, setPickerMode] = useState<null | "repeat" | "deepen">(
+    null,
+  );
+  const [error, setError] = useState<string | null>(null);
+
+  const hasExercises = exerciseItems.length > 0;
+  const singleExercise = exerciseItems.length === 1 ? exerciseItems[0] : null;
+
+  function startRepeat() {
+    setError(null);
+    if (!hasExercises) return;
+    if (singleExercise) {
+      void runRepeat(singleExercise.id);
+    } else {
+      setPickerMode("repeat");
+    }
+  }
+
+  function startDeepen() {
+    setError(null);
+    if (!hasExercises) return;
+    if (singleExercise) {
+      void runDeepen(singleExercise.id);
+    } else {
+      setPickerMode("deepen");
+    }
+  }
+
+  async function runRepeat(itemId: string) {
+    setBusy("repeat");
+    setPickerMode(null);
+    try {
+      const res = await fetch("/api/workspace/reset", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ plateItemId, itemId }),
+      });
+      if (!res.ok) {
+        const data = (await res.json().catch(() => ({}))) as {
+          error?: string;
+        };
+        setError(data.error ?? "Reset failed.");
+        setBusy(null);
+        return;
+      }
+      router.push(`/learn/${unitNumber}/${itemId}`);
+    } catch {
+      setError("Network issue — try again.");
+      setBusy(null);
+    }
+  }
+
+  async function runDeepen(itemId: string) {
+    setBusy("deepen");
+    setPickerMode(null);
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), 60000);
+    try {
+      const res = await fetch("/api/workspace/deepen", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ plateItemId, itemId }),
+        signal: controller.signal,
+      });
+      if (!res.ok) {
+        const data = (await res.json().catch(() => ({}))) as {
+          error?: string;
+        };
+        setError(data.error ?? "Deepen failed.");
+        setBusy(null);
+        return;
+      }
+      router.push(`/learn/${unitNumber}/${itemId}`);
+    } catch {
+      setError("Network issue — try again.");
+      setBusy(null);
+    } finally {
+      window.clearTimeout(timeoutId);
+    }
+  }
+
+  return (
+    <div className="mb-8 rounded-md border border-gray-200 bg-gray-50 p-5">
+      <p className="text-sm font-semibold text-gray-900">
+        You&apos;ve completed this unit.
+      </p>
+      <p className="mt-1 text-sm text-gray-700">
+        Re-entry is for practice — your dashboard status stays as{" "}
+        <strong>complete</strong>.
+      </p>
+
+      <div className="mt-4 flex flex-wrap gap-2">
+        {firstReadItemId && (
+          <Link
+            href={`/learn/${unitNumber}/${firstReadItemId}`}
+            className="inline-flex items-center gap-2 rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-800 transition hover:border-gray-400"
+          >
+            Review
+          </Link>
+        )}
+        <button
+          type="button"
+          onClick={startRepeat}
+          disabled={busy !== null || !hasExercises}
+          className="inline-flex items-center gap-2 rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-800 transition hover:border-gray-400 disabled:opacity-50"
+        >
+          {busy === "repeat" ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+              Resetting…
+            </>
+          ) : (
+            <>Repeat the exercise</>
+          )}
+        </button>
+        <button
+          type="button"
+          onClick={startDeepen}
+          disabled={busy !== null || !hasExercises}
+          className="inline-flex items-center gap-2 rounded-md bg-black px-4 py-2 text-sm font-medium text-white transition hover:opacity-90 disabled:opacity-50"
+        >
+          {busy === "deepen" ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+              Generating…
+            </>
+          ) : (
+            <>Deepen — fresh AI variation</>
+          )}
+        </button>
+      </div>
+
+      {error && (
+        <p className="mt-3 text-xs text-red-600" role="alert">
+          {error}
+        </p>
+      )}
+
+      {pickerMode && (
+        <ExercisePicker
+          mode={pickerMode}
+          items={exerciseItems}
+          onPick={(id) => {
+            if (pickerMode === "repeat") void runRepeat(id);
+            else void runDeepen(id);
+          }}
+          onCancel={() => setPickerMode(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+// Picker only renders when there are multiple exercise items. For
+// Unit 01 (single exercise) it never opens — the parent collapses to
+// direct launch. Kept simple — inline list, no modal.
+function ExercisePicker({
+  mode,
+  items,
+  onPick,
+  onCancel,
+}: {
+  mode: "repeat" | "deepen";
+  items: LessonItem[];
+  onPick: (itemId: string) => void;
+  onCancel: () => void;
+}) {
+  return (
+    <div className="mt-4 rounded-md border border-gray-300 bg-white p-4">
+      <div className="flex items-baseline justify-between gap-3">
+        <p className="text-sm font-medium text-gray-900">
+          Which exercise do you want to {mode === "repeat" ? "repeat" : "deepen"}?
+        </p>
+        <button
+          type="button"
+          onClick={onCancel}
+          className="text-xs text-gray-500 underline-offset-4 hover:text-gray-900 hover:underline"
+        >
+          Cancel
+        </button>
+      </div>
+      <ul className="mt-3 space-y-2">
+        {items.map((it) => (
+          <li key={it.id}>
+            <button
+              type="button"
+              onClick={() => onPick(it.id)}
+              className="w-full rounded-md border border-gray-200 px-3 py-2 text-left text-sm text-gray-800 transition hover:border-gray-400"
+            >
+              {it.title}
+            </button>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+

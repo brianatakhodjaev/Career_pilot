@@ -85,6 +85,7 @@ export default async function LearnItemPage({ params }: PageProps) {
             selectedTaskId: true,
             currentPrompt: true,
             promptHistory: true,
+            customTask: true,
           },
         })
       : null;
@@ -113,8 +114,21 @@ export default async function LearnItemPage({ params }: PageProps) {
         selectedTaskId: workspaceState?.selectedTaskId ?? null,
         currentPrompt: workspaceState?.currentPrompt ?? "",
         history: parseHistory(workspaceState?.promptHistory ?? []),
+        customTask: parseCustomTask(workspaceState?.customTask),
       }}
       reflectionInitial={initialReflectionAnswers}
     />
   );
+}
+
+// Custom-task validation — the DB column is Json, so we shape-check
+// before passing to the client. Anything malformed becomes null.
+function parseCustomTask(
+  raw: unknown,
+): { audience: string; task: string } | null {
+  if (!raw || typeof raw !== "object") return null;
+  const v = raw as { audience?: unknown; task?: unknown };
+  if (typeof v.audience !== "string" || typeof v.task !== "string") return null;
+  if (!v.audience.trim() || !v.task.trim()) return null;
+  return { audience: v.audience, task: v.task };
 }

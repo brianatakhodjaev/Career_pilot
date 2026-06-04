@@ -169,6 +169,12 @@ export function DashboardView({ data }: { data: DashboardData }) {
             >
               Update your background
             </Link>
+            <Link
+              href="/settings/ai"
+              className="underline underline-offset-2 hover:no-underline"
+            >
+              AI settings
+            </Link>
           </div>
         </footer>
       </div>

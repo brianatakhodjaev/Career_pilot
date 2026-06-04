@@ -28,6 +28,7 @@ interface ItemViewProps {
     selectedTaskId: string | null;
     currentPrompt: string;
     history: HistoryEntry[];
+    customTask: { audience: string; task: string } | null;
   };
   reflectionInitial: Record<string, string>;
 }
@@ -197,6 +198,7 @@ export function ItemView({
                   initialSelectedTaskId={workspaceInitial.selectedTaskId}
                   initialCurrentPrompt={workspaceInitial.currentPrompt}
                   initialHistory={workspaceInitial.history}
+                  customTask={workspaceInitial.customTask}
                   onProgress={handleExerciseProgress}
                 />
               )}

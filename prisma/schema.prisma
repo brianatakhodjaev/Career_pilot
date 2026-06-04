@@ -200,6 +200,7 @@ model WorkspaceState {
   selectedTaskId String? // which scaffolded task the user picked
   promptHistory  Json // capped at 20 entries; see lib/workspace-history.ts (Stage 2)
   currentPrompt  String? // in-flight prompt textarea contents
+  customTask     Json? // AI-generated scaffolded task from Deepen re-entry (Stage 3 §15.8); { audience, task }
   updatedAt      DateTime  @updatedAt
   plateItem      PlateItem @relation(fields: [plateItemId], references: [id])
 

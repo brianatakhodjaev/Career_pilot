@@ -2,7 +2,12 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { CLAUDE_MODEL, getAnthropicClient } from "@/lib/anthropic";
+import { CLAUDE_MODEL } from "@/lib/anthropic";
+import {
+  getAnthropicForUser,
+  isAnthropicAuthError,
+  ByoKeyError,
+} from "@/lib/byo-anthropic";
 import {
   appendToHistory,
   parseHistory,
@@ -87,10 +92,20 @@ export async function POST(request: Request) {
     );
   }
 
-  let anthropic;
+  // Resolve the Anthropic client per UserSettings.byoApiProvider
+  // (Stage 3). BYO key decryption failures surface as ByoKeyError
+  // which we map to a 502 with a clear "check /settings/ai" message
+  // (Decision F).
+  let resolved;
   try {
-    anthropic = getAnthropicClient();
+    resolved = await getAnthropicForUser(userId);
   } catch (err) {
+    if (err instanceof ByoKeyError) {
+      return NextResponse.json(
+        { success: false, error: err.message },
+        { status: 502 },
+      );
+    }
     console.error("[workspace/run] Anthropic client init failed", err);
     return NextResponse.json(
       { success: false, error: "AI backend not configured." },
@@ -101,7 +116,7 @@ export async function POST(request: Request) {
   // Anthropic streaming. No system prompt (Decision B). The model sees
   // exactly what the user typed — the exercise is the user learning
   // what raw prompting feels like.
-  const stream = anthropic.messages.stream({
+  const stream = resolved.client.messages.stream({
     model: CLAUDE_MODEL,
     max_tokens: 2048,
     messages: [{ role: "user", content: prompt }],
@@ -109,6 +124,7 @@ export async function POST(request: Request) {
 
   let fullText = "";
   const encoder = new TextEncoder();
+  const isByo = resolved.isByo;
 
   const body_stream = new ReadableStream<Uint8Array>({
     async start(controller) {
@@ -124,7 +140,18 @@ export async function POST(request: Request) {
           }
         }
       } catch (err) {
-        console.error("[workspace/run] Anthropic stream error", err);
+        // Decision F: BYO 401/403 must surface clearly. Anthropic SDK
+        // errors raised inside the stream loop are wrapped before we
+        // re-throw to abort the stream — the client will see a
+        // truncated response with a header-level error indicator.
+        if (isByo && isAnthropicAuthError(err)) {
+          const msg =
+            "Your BYO API key was rejected by Anthropic. Check /settings/ai.";
+          controller.enqueue(encoder.encode(`\n\n[ERROR] ${msg}`));
+          console.warn("[workspace/run] BYO auth error", err);
+        } else {
+          console.error("[workspace/run] Anthropic stream error", err);
+        }
         controller.error(err);
         return;
       }
@@ -184,6 +211,9 @@ async function persistRunResult(args: PersistArgs): Promise<void> {
   const currentHistory = parseHistory(existing?.promptHistory);
   const nextHistory = appendToHistory(currentHistory, args.entry);
 
+  // Stage 3 Bug 2 fix: do NOT clear currentPrompt on history append.
+  // The user's last prompt stays in the textarea so iteration doesn't
+  // require retyping. They can edit or clear it themselves.
   await prisma.workspaceState.upsert({
     where: {
       plateItemId_itemId: {
@@ -196,12 +226,10 @@ async function persistRunResult(args: PersistArgs): Promise<void> {
       itemId: args.itemId,
       selectedTaskId: args.selectedTaskId,
       promptHistory: nextHistory,
-      currentPrompt: null,
     },
     update: {
       selectedTaskId: args.selectedTaskId,
       promptHistory: nextHistory,
-      currentPrompt: null,
     },
   });
 
