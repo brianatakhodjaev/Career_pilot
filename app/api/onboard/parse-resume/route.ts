@@ -33,6 +33,21 @@ const MAX_BYTES = 4 * 1024 * 1024; // 4 MB
 const MIN_OUTPUT_CHARS = 20;
 const LOCAL_PDF_SUFFICIENT_CHARS = 100;
 
+// Sentinel Haiku is instructed to return when a PDF has no extractable
+// text (blank, image-only, etc.). Caught in the POST handler before
+// the length floor so a polite refusal like "I'm unable to extract
+// text from this document..." can't slip past as if it were resume
+// content. See the Haiku system prompt below for the corresponding
+// instruction.
+const NO_TEXT_SENTINEL = "__NO_TEXT__";
+
+const HAIKU_PDF_EXTRACTION_SYSTEM_PROMPT =
+  "You extract text from PDF documents for a resume-intake tool. " +
+  "If the document contains extractable text, return the text exactly " +
+  "as written — plain text only, no commentary, no formatting notes, " +
+  "no introductions. " +
+  `If the document contains NO extractable text (blank pages, image-only with no readable content, scanned at too-low quality, etc.), return exactly the sentinel ${NO_TEXT_SENTINEL} and nothing else — no apology, no explanation, no surrounding words.`;
+
 type AllowedExt = "txt" | "docx" | "pdf";
 
 interface AllowedType {
@@ -159,6 +174,20 @@ export async function POST(request: Request) {
   }
 
   const trimmed = text.trim();
+
+  // Sentinel check — Haiku is instructed to return exactly __NO_TEXT__
+  // when a PDF has no extractable content, but the response can
+  // sometimes carry whitespace or stray tokens around it (or the model
+  // may still wrap it). Using `includes` rather than equality guards
+  // against both. Caught BEFORE the length floor so a long polite
+  // refusal that wraps the sentinel still fails closed.
+  if (trimmed.includes(NO_TEXT_SENTINEL)) {
+    return errorResponse(
+      "unreadable_pdf",
+      "We couldn't read text from this file — it may be a scanned image. Paste your text below instead.",
+    );
+  }
+
   if (trimmed.length < MIN_OUTPUT_CHARS) {
     return errorResponse(
       ext === "pdf" ? "unreadable_pdf" : "too_short",
@@ -253,6 +282,7 @@ async function extractPdfViaHaiku(bytes: Uint8Array): Promise<string> {
   const response = await anthropic.messages.create({
     model: CLAUDE_HAIKU_MODEL,
     max_tokens: 8192,
+    system: HAIKU_PDF_EXTRACTION_SYSTEM_PROMPT,
     messages: [
       {
         role: "user",
@@ -267,7 +297,7 @@ async function extractPdfViaHaiku(bytes: Uint8Array): Promise<string> {
           },
           {
             type: "text",
-            text: "Extract all text from this resume exactly as written, plain text only, no commentary.",
+            text: "Extract all text from this resume.",
           },
         ],
       },
