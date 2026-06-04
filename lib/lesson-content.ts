@@ -31,6 +31,14 @@ export const ExerciseSchema = z.object({
   instructions: z.string().min(1),
   scaffoldedTasks: z.array(ScaffoldedTaskSchema).min(1),
   scaffoldedRounds: z.array(ScaffoldedRoundSchema).default([]),
+  // The noun the workspace uses when referring to one of the
+  // scaffoldedRounds in user-facing chrome ("Round 1 of 2",
+  // "Continue to Round 2", "Earlier rounds (1)"). Compare-format
+  // exercises use the default "Round"/"Rounds"; Build-format units
+  // (Unit 02) override with "Pass"/"Passes". Explicit plural avoids
+  // pluralization rules ("Pass" + "s" = "Passs" would be wrong).
+  roundNoun: z.string().min(1).default("Round"),
+  roundNounPlural: z.string().min(1).default("Rounds"),
 });
 
 export const LessonItemSchema = z.object({

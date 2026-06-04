@@ -253,6 +253,7 @@ export function Workspace({
               round={activeRound}
               roundIndex={userAdvancedToRoundIndex}
               totalRounds={rounds.length}
+              roundNoun={exercise.roundNoun}
             />
           )}
 
@@ -260,6 +261,8 @@ export function Workspace({
             <PriorRoundsSummary
               rounds={rounds.slice(0, userAdvancedToRoundIndex)}
               history={history}
+              roundNounPlural={exercise.roundNounPlural}
+              roundNoun={exercise.roundNoun}
             />
           )}
 
@@ -281,6 +284,7 @@ export function Workspace({
             isStreaming={isStreaming}
             streamingText={streamingText}
             historyForActiveRound={historyForActiveRound}
+            roundNoun={exercise.roundNoun}
           />
 
           {canAdvanceToNextRound && (
@@ -288,10 +292,17 @@ export function Workspace({
             // vertical padding, top margin, and a subtitle line so the
             // button reads as a deliberate next step instead of a
             // quiet control. Hit-target ~doubles vs Stage 2.
+            //
+            // Unit 02 walk fix: noun is now data-driven via
+            // exercise.roundNoun. The "better-briefed" framing was
+            // Compare-specific and is dropped — the generic
+            // "{noun} N done. Continue to {noun} N+1 when ready."
+            // works across formats.
             <div className="mt-4 rounded-md border border-gray-300 bg-white p-4">
               <p className="text-sm text-gray-700">
-                Round {userAdvancedToRoundIndex + 1} done — when ready,
-                draft a better-briefed Round {userAdvancedToRoundIndex + 2}.
+                {exercise.roundNoun} {userAdvancedToRoundIndex + 1} done.
+                Continue to {exercise.roundNoun} {userAdvancedToRoundIndex + 2}{" "}
+                when ready.
               </p>
               <button
                 type="button"
@@ -299,7 +310,7 @@ export function Workspace({
                 disabled={isStreaming}
                 className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-md border border-black bg-white px-5 py-3 text-sm font-medium text-black transition hover:bg-gray-50 disabled:opacity-40 sm:w-auto sm:min-w-48"
               >
-                Continue to Round {userAdvancedToRoundIndex + 2}
+                Continue to {exercise.roundNoun} {userAdvancedToRoundIndex + 2}
               </button>
             </div>
           )}
@@ -417,15 +428,17 @@ function RoundHeader({
   round,
   roundIndex,
   totalRounds,
+  roundNoun,
 }: {
   round: ScaffoldedRound;
   roundIndex: number;
   totalRounds: number;
+  roundNoun: string;
 }) {
   return (
     <div className="rounded-md border-l-2 border-black bg-gray-50 px-4 py-3">
       <p className="text-xs uppercase tracking-wider text-gray-500">
-        Round {roundIndex + 1} of {totalRounds}
+        {roundNoun} {roundIndex + 1} of {totalRounds}
       </p>
       <p className="mt-1 text-sm font-semibold text-gray-900">{round.label}</p>
       <p className="mt-1 text-sm text-gray-700">{round.instructions}</p>
@@ -436,14 +449,18 @@ function RoundHeader({
 function PriorRoundsSummary({
   rounds,
   history,
+  roundNoun,
+  roundNounPlural,
 }: {
   rounds: ScaffoldedRound[];
   history: HistoryEntry[];
+  roundNoun: string;
+  roundNounPlural: string;
 }) {
   return (
     <details className="rounded-md border border-gray-200 bg-white">
       <summary className="cursor-pointer px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50">
-        Earlier rounds ({rounds.length})
+        Earlier {roundNounPlural.toLowerCase()} ({rounds.length})
       </summary>
       <div className="space-y-4 px-3 py-3">
         {rounds.map((r) => {
@@ -466,7 +483,7 @@ function PriorRoundsSummary({
                 </>
               ) : (
                 <p className="mt-1 text-xs italic text-gray-400">
-                  No runs recorded for this round.
+                  No runs recorded for this {roundNoun.toLowerCase()}.
                 </p>
               )}
             </div>
@@ -535,10 +552,12 @@ function OutputArea({
   isStreaming,
   streamingText,
   historyForActiveRound,
+  roundNoun,
 }: {
   isStreaming: boolean;
   streamingText: string;
   historyForActiveRound: HistoryEntry[];
+  roundNoun: string;
 }) {
   const latest = historyForActiveRound[historyForActiveRound.length - 1];
   const earlier = historyForActiveRound.slice(0, -1);
@@ -584,7 +603,7 @@ function OutputArea({
         <details className="mt-3">
           <summary className="cursor-pointer text-xs font-medium text-gray-600 hover:text-gray-900">
             <HistoryIcon className="mr-1 inline h-3 w-3" aria-hidden="true" />
-            {earlier.length} earlier run{earlier.length === 1 ? "" : "s"} in this round
+            {earlier.length} earlier run{earlier.length === 1 ? "" : "s"} in this {roundNoun.toLowerCase()}
           </summary>
           <div className="mt-2 space-y-3">
             {earlier
