@@ -469,4 +469,30 @@ you."
 
 ---
 
+## Walked and confirmed — 2026-06-03
+
+Walked end-to-end with the rich-input veteran fixture today. No tuning
+required.
+
+- Depth-scaling worked as specified. `inputDepth` classified the input
+  correctly; the assessment screen rendered the calibrated callout at
+  the right prominence (subtle for rich input).
+- `exposedWork` named the user's actual work back to them — `isSpecific`
+  was true where it should have been, and the representative tools +
+  branch suggestions per item read as the amendment intended.
+- `/onboard/proud` adaptive framing was correct against the
+  600-character threshold (the rich background triggered the
+  "You've already shared a lot…" treatment with prominent Skip).
+- `/onboard/review` summary read accurately — the system's
+  interpretation matched the user's actual situation; nothing
+  significant to correct.
+- Selector rationales cited specific `exposedWork` / `defensibleWork`
+  findings by name, and the menu's "Addresses:" line rendered the
+  linkage cleanly.
+
+Amendment 5 is considered shipped and validated. Future tuning, if
+needed, will be captured as a follow-up amendment.
+
+---
+
 *End of Amendment 5.*
