@@ -477,72 +477,63 @@ Background: {linkedInText or resumeText or 'not provided'}.
 
 ---
 
-## 8. Prisma schema — add these models
+## 8. Prisma schema
+
+This section mirrors `prisma/schema.prisma`. When the two diverge, the
+prisma file is the source of truth for code; this section must be kept
+current as amendments land.
 
 ```prisma
+// ---------- CareerPilot domain models ----------
+
 model UserProfile {
-  id          String           @id @default(cuid())
-  userId      String           @unique
-  profileType String           // veteran | threatened | starter
-  linkedInUrl String?
-  resumeText  String?
-  answers     Json             // questionnaire answers
-  createdAt   DateTime         @default(now())
-  plans       CareerPlan[]
-  assessments RiskAssessment[]
+  id               String           @id @default(cuid())
+  userId           String           @unique
+  profileType      String           // veteran | threatened | starter
+  linkedInUrl      String?
+  resumeText       String?
+  proudPoint       String?          // optional pride-point text (Amendment 5 §5a.2)
+  reviewSummary    String?          // AI summary the user saw on /onboard/review (Amendment 5 §5a.3)
+  reviewCorrection String?          // optional user correction on /onboard/review
+  answers          Json             // questionnaire answers
+  createdAt        DateTime         @default(now())
+  user             User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plans            CareerPlan[]
+  assessments     RiskAssessment[]
 }
 
 model RiskAssessment {
   id              String      @id @default(cuid())
   userId          String
   occupationLabel String
+  inputDepth      String      // "thin" | "moderate" | "rich" — Amendment 5 §6
+  inputDepthNote  String      // visible calibration of what we had to work with
   scoreToday      Int
   scoreProjected  Int
   scoreWithPlan   Int
-  exposedTasks    String[]
-  defensibleTasks String[]
+  factors         Json        // [{ label, score, note }] x 5 — see §6
+  exposedWork     Json        // [{ work, isSpecific, tools[], branchTo }] — Amendment 5
+  defensibleWork  String[]
   reasoning       String
   createdAt       DateTime    @default(now())
   profile         UserProfile @relation(fields: [userId], references: [userId])
 }
 
+// CareerPlan is the user's "plate" container post-Amendment 3. Legacy
+// invention-mode fields (title, trackType, matchScore, description,
+// planData) and the PlanPhase/LearningTask tree are retired — content
+// now lives in BuffetUnit, with per-user-per-plate markup in PlateItem.
 model CareerPlan {
   id            String            @id @default(cuid())
   userId        String
-  title         String
-  trackType     String
-  matchScore    Int
   isActive      Boolean           @default(false)
   durationWeeks Int
   hoursPerWeek  Int
-  description   String
-  planData      Json
   createdAt     DateTime          @default(now())
-  startedAt     DateTime? // null until the user clicks "Begin week 1" on /dashboard; current week is computed from this, not createdAt
+  startedAt     DateTime?         // null until the user clicks "Begin week 1". Week N is computed from this, not createdAt — §13 principles 8/9.
   profile       UserProfile       @relation(fields: [userId], references: [userId])
-  phases        PlanPhase[]
+  plateItems    PlateItem[]
   sessions      LearningSession[]
-}
-
-model PlanPhase {
-  id          String         @id @default(cuid())
-  planId      String
-  weekNumber  Int            // week the phase begins within the plan (e.g., 1, 3, 6 in a 16-week plan), not a phase index
-  title       String
-  objectives  String[]
-  plan        CareerPlan     @relation(fields: [planId], references: [id])
-  tasks       LearningTask[]
-}
-
-model LearningTask {
-  id               String     @id @default(cuid())
-  phaseId          String
-  title            String
-  type             String     // reading | practice | project | experiment
-  estimatedMinutes Int
-  resourceUrl      String?
-  completedAt      DateTime?
-  phase            PlanPhase  @relation(fields: [phaseId], references: [id])
 }
 
 model LearningSession {
@@ -567,47 +558,155 @@ model UserProgress {
   skillsLogged   Int       @default(0)
 }
 
-// ---------- Buffet models (post-Amendment 3) ----------
-// BuffetUnit is the library. PlateItem is one unit on one user's plate.
-// The exact relational adaptation of CareerPlan / PlanPhase / LearningTask
-// to this model is settled at build time — the principle is that a user's
-// curriculum is assembled from BuffetUnit via PlateItem, not from invented
-// LearningTask rows. See §14.
+// ---------- NextAuth (Auth.js v5) models ----------
+// Account/Session/User CASCADE on user deletion (standard NextAuth
+// pattern); CareerPilot child relations remain RESTRICT (safe default).
+
+model User {
+  id            String       @id @default(cuid())
+  name          String?
+  email         String?      @unique
+  emailVerified DateTime?
+  image         String?
+  password      String?      // bcrypt hash; null for OAuth-only users
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  accounts      Account[]
+  sessions      Session[]
+  profile       UserProfile?
+  settings      UserSettings?
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// ---------- Buffet models (Amendment 3) ----------
+// BuffetUnit is the library. PlateItem is one unit on one user's plate
+// with the selector's tag + rationale + addressesFinding. See §14.
 
 model BuffetUnit {
-  id             String   @id @default(cuid())
-  unitNumber     Int      @unique
+  id             String      @id @default(cuid())
+  unitNumber     Int         @unique
   title          String
   skill          String
-  tier           String // Foundation | Applied | Transformation
+  tier           String      // Foundation | Applied | Transformation
   timeRangeMin   Int
   timeRangeMax   Int
   exerciseFormat String
-  content        Json // whyThisMatters, teaching, exercise, reflection, successCheck, tools, goingDeeper
-  version        Int      @default(1)
-  isPublished    Boolean  @default(false)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  content        Json        // §15.10 shape (post-Amendment 6): objectives, items[], reflectionPrompts, tools, goingDeeper
+  prerequisites  Int[]       // unitNumbers that should come first; empty array if none
+  version        Int         @default(1)
+  isPublished   Boolean     @default(false)
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+  plateItems     PlateItem[]
 }
 
 model PlateItem {
-  id          String     @id @default(cuid())
-  userId      String
-  planId      String
-  unitId      String
-  tag         String // core | later | skip
-  rationale   String // the selector's one-line "why this helps you"
-  orderIndex  Int
-  startedAt   DateTime? // set when the lesson is first opened — see §15.3 for the three-state status (not started / in progress / complete)
-  completedAt DateTime?
-  plan        CareerPlan @relation(fields: [planId], references: [id])
-  unit        BuffetUnit @relation(fields: [unitId], references: [id])
+  id            String                @id @default(cuid())
+  userId        String
+  planId        String
+  unitId        String
+  tag           String                // core | later | skip
+  rationale     String                // the selector's one-line "why this helps you"
+  orderIndex    Int
+  startedAt     DateTime?             // set on first lesson entry — see §15.5 for the four-state status
+  completedAt   DateTime?             // set when the user marks the unit complete from the lesson TOC (§15.5)
+  plan          CareerPlan            @relation(fields: [planId], references: [id])
+  unit          BuffetUnit            @relation(fields: [unitId], references: [id])
+  itemProgress  LessonItemProgress[]
+  reflections   ReflectionAnswer[]
+  workspaces    WorkspaceState[]
 
   @@unique([planId, unitId])
 }
+
+// ---------- Lesson-delivery models (Amendment 6) ----------
+
+model LessonItemProgress {
+  id          String    @id @default(cuid())
+  plateItemId String
+  itemId      String    // matches BuffetUnit.content.items[].id
+  status      String    // "in_progress" | "complete" | "got_it"
+  startedAt   DateTime  @default(now())
+  completedAt DateTime?
+  plateItem   PlateItem @relation(fields: [plateItemId], references: [id])
+
+  @@unique([plateItemId, itemId])
+}
+
+model ReflectionAnswer {
+  id          String    @id @default(cuid())
+  plateItemId String
+  prompt      String    // the prompt text the user answered
+  answer      String
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  plateItem   PlateItem @relation(fields: [plateItemId], references: [id])
+}
+
+model WorkspaceState {
+  id             String    @id @default(cuid())
+  plateItemId    String
+  itemId         String    // matches BuffetUnit.content.items[].id
+  selectedTaskId String?   // which scaffolded task the user picked
+  promptHistory  Json      // [{ prompt, response, runAt }, ...]
+  currentPrompt  String?   // the in-flight prompt textarea contents
+  updatedAt      DateTime  @updatedAt
+  plateItem      PlateItem @relation(fields: [plateItemId], references: [id])
+
+  @@unique([plateItemId, itemId])
+}
+
+model UserSettings {
+  id             String   @id @default(cuid())
+  userId         String   @unique
+  byoApiProvider String?  // "anthropic" | "openai" | null (= use CareerPilot's API)
+  byoApiKey      String?  // encrypted at rest; null when byoApiProvider is null
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
 ```
 
-Run `npx prisma migrate dev` after adding these.
+`UserSettings.byoApiKey` must be encrypted at rest. The Amendment 6
+build plan recommends the encryption approach (envelope encryption via
+AES-GCM with a key in environment is the working assumption).
+
+Run `npx prisma migrate dev` after schema changes, and restart the dev
+server immediately after (singleton Prisma client doesn't reload through
+Turbopack hot reload).
 
 ---
 
@@ -615,10 +714,13 @@ Run `npx prisma migrate dev` after adding these.
 
 | Route | Method | Purpose |
 |---|---|---|
-| `/api/assess-exposure` | POST | Claude call → 3-score exposure assessment |
-| `/api/generate-plans` | POST | Claude call → 3 career plans as JSON |
-| `/api/plans/confirm` | POST | Persist chosen plan + phases + tasks; mark `isActive: true` |
-| `/api/tasks/complete` | POST | Mark a task done, update UserProgress |
+| `/api/review-summary` | POST | Claude (Haiku) call → 2–3 paragraph summary of the system's understanding of the user (Amendment 5 §5a.3) |
+| `/api/assess-exposure` | POST | Claude call → depth-calibrated exposure assessment with `inputDepth`, `exposedWork[]`, `defensibleWork` (Amendment 5 §6) |
+| `/api/generate-plans` | POST | Claude call → buffet selector output (tag + rationale + `addressesFinding` per unit, pacing, summary). Replaces the legacy three-plan invention prompt; see §7 / §14.2. |
+| `/api/plates/confirm` | POST | Persist the user's plate: `CareerPlan` + `PlateItem` per selection; mark `isActive: true` |
+| `/api/plate-items/start` | POST | Set `PlateItem.startedAt` on first lesson entry |
+| `/api/plate-items/complete` | POST | Set `PlateItem.completedAt` when the user confirms unit completion from the lesson TOC |
+| `/api/workspace/run` | POST | Run a workspace prompt against the user's configured AI backend — CareerPilot's Claude API by default, or BYO provider when set (Amendment 6 Change 4). Per-user rate-limited. |
 | `/api/sessions/start` | POST | Start a timed learning session |
 | `/api/sessions/end` | POST | End session, save notes + tools used |
 
@@ -714,22 +816,75 @@ copy, and field-test recruitment target the **Threatened** profile (mid-career,
 15. Build `/dashboard` — header (plate title + current week), three stat
     cards (plate progress, day streak, minutes logged), and a "What
     you're working on" area showing each core `PlateItem` as a clickable
-    card linking to its lesson at `/learn/[unitNumber]`. Cards show
-    three-state status per §15.3: not started / in progress / complete.
-    The dashboard *reflects* completion; it does NOT *set* it
-    (completion lives on the lesson screen — Amendment 4). The "Begin
-    week 1" CTA sets `CareerPlan.startedAt` on click and is the only
-    control in the not-started state — no session timer on this screen
-    (timer moves to the lesson per §15.4). Footer links to `/assessment`
-    and `/onboard/background`. Must follow §13 design principles,
-    including principles 8 and 9 (streak rules and curriculum
-    re-pacing).
-16. Build `/learn/[unitNumber]` — the lesson-delivery screen per §15:
-    stepped flow (why this matters → teaching → exercise → reflection
-    → wrap-up), Start/Pause/Resume session timer on this screen, and
-    the "Mark this unit complete" action that sets `PlateItem.completedAt`
-    via `/api/plate-items/complete`. Sets `PlateItem.startedAt` on first
-    open. Requires the `PlateItem.startedAt` migration (§8).
+    card linking to its lesson TOC at `/learn/[unitNumber]`. Cards show
+    a four-state item rollup per §15.5: not started / in progress /
+    complete / "I got it." The dashboard *reflects* completion; it does
+    NOT *set* it (completion is asserted from the lesson's TOC via
+    "Mark unit complete" — Amendment 6). The "Begin week 1" CTA sets
+    `CareerPlan.startedAt` on click and is the only control in the
+    not-started state — no session timer on this screen (timer moves to
+    the lesson per §15.9). Footer links to `/assessment` and
+    `/onboard/background`. Must follow §13 design principles, including
+    principles 8 and 9 (streak rules and curriculum re-pacing) and
+    principle 11 (proven learning-platform UX baseline).
+16. Reshape Unit 01 v2's `BuffetUnit.content` into the §15.10 structure.
+    Content stays semantically intact — the v2 teaching is regrouped into
+    the new `items` structure, not rewritten. Reseed via
+    `scripts/seed-buffet.ts`. (Retires the prior Amendment-4 step 16 —
+    the linear five-step lesson — entirely.)
+17. Add the §8 schema additions for Amendment 6
+    (`LessonItemProgress`, `ReflectionAnswer`, `WorkspaceState`,
+    `UserSettings`). Migrate. Restart dev server.
+18. Build `/learn/[unitNumber]` as the TOC view per §15.2: objectives,
+    clickable item list with status badges, persistent header with the
+    renamed session timer (§15.9), "Mark unit complete" action gated on
+    item completion (§15.5). Must follow §13 principle 11.
+19. Build `/learn/[unitNumber]/[itemId]` as the three-region item view
+    per §15.3: left instruction, middle workspace, right output region.
+    Handle responsive collapse to a vertical stack.
+20. Build the in-app workspace per §15.4: selectable scaffolded-task
+    cards (fixing the Amendment-4 selection bug), prompt textarea, Run
+    action, output region with iteration history, autosave to
+    `WorkspaceState`.
+21. Build `POST /api/workspace/run` per §15 / Amendment 6 Change 4:
+    routes to CareerPilot's Claude API by default, to BYO provider when
+    `UserSettings.byoApiProvider` is set. Per-user rate limits. Returns
+    a streamed response where possible.
+22. Build `/settings/ai` per Amendment 6 Change 4: surfaces the BYO
+    option, stores encrypted key in `UserSettings`, default copy makes
+    clear that CareerPilot covers the cost by default.
+23. Build re-entry per §15.8: re-entry banner on the TOC of a completed
+    unit, three paths (Review / Repeat / Deepen), where Deepen calls a
+    fresh exercise-variation prompt against the workspace's AI backend.
+24. Wire self-tests per §15.6 — render `selfTest` arrays as checklists
+    on read-only items and at the end of exercises.
+25. Wire reflection persistence per §15.7 — write to `ReflectionAnswer`;
+    read back on item re-visit; remove the "browser session only" copy.
+26. Revise the dashboard's unit-card display (step 15) to link to the
+    TOC view and to reflect the four-state item rollup as the unit's
+    progress indicator.
+
+### Amendment 6 build staging
+
+Steps 16–26 are split into three atomic stages, each leaving `main` in a
+working state:
+
+- **Stage 1 — Architecture (steps 16–19, 24, 26).** Schema migration +
+  Unit 01 reshape + TOC view + item view + self-test rendering +
+  dashboard rewire. The lesson is navigable and selectable, but the
+  workspace is read-only; the "open your AI assistant in another tab"
+  instruction is retained as a fallback in the exercise region.
+- **Stage 2 — Workspace (steps 20, 21, 25).** The in-app workspace, the
+  AI backend route running against CareerPilot's default Claude API,
+  autosave to `WorkspaceState`, reflection persistence. BYO is not yet
+  exposed.
+- **Stage 3 — Re-entry & BYO (steps 22, 23).** The `/settings/ai` page,
+  the BYO option, the three re-entry paths including the Deepen
+  exercise-variation call.
+
+Each stage is reviewed via Claude Code's build-plan checkpoint before
+execution, and each stage commits atomically. Stage 1 alone is
+comparable in scope to Amendment 4 in its entirety.
 
 ---
 
@@ -763,6 +918,11 @@ motivation spike is the central operational risk for this category. Streaks
 and session tracking alone are unlikely to be sufficient. An accountability
 layer — cohorts, check-ins, or a human-in-the-loop element — is a recognised
 Phase 3 priority, not an MVP feature.
+
+**BYO credentials and `/settings/ai` are in Phase 1** because the
+Amendment-6 workspace requires the mechanism — not because settings or
+billing as a category is Phase 1. Stripe and the rest of the
+settings/billing surface remain Phase 3.
 
 ---
 
@@ -837,6 +997,17 @@ These principles are binding on the assessment and dashboard UI.
     applies to the UI rendering as well — surface the `inputDepth` state,
     do not hide it.
 
+11. **Use proven learning-platform UX as the baseline.** The interaction
+    patterns of established platforms (Khan Academy, Coursera, DataCamp)
+    have been tested by millions of users. CareerPilot does not reinvent
+    them. Lesson screens, exercises, progress visualization, completion
+    behavior — all default to the patterns these platforms have proven.
+    CareerPilot's only differentiator on top is user-driven curriculum
+    curation, which the buffet (§14) already provides. New UX is built
+    only where the curation pattern requires it. This principle is
+    binding on the lesson screen and on any future learning-side
+    feature.
+
 ---
 
 ## 14. The learning buffet
@@ -867,24 +1038,29 @@ sees the same library, marked up for them.
 
 ### 14.3 Unit structure
 
-Every buffet unit has these fields:
+Every buffet unit has top-level metadata fields (stored as columns on
+`BuffetUnit`, see §8) and a content payload (the `content` Json column,
+shape defined in §15.10 post-Amendment 6).
+
+**Top-level metadata fields:**
 
 | Field | What it holds |
 |---|---|
 | `unitNumber` | Order in the library |
 | `title` | Short, plain, inviting |
 | `skill` | One line: what the user can DO after the unit |
-| `timeRange` | A range, e.g. "15–30 min" — never a single precise number |
+| `timeRangeMin`/`timeRangeMax` | A range, e.g. "15–30 min" — never a single precise number |
 | `tier` | Foundation / Applied / Transformation |
-| `prerequisites` | Earlier units that should come first, or none |
-| `whyThisMatters` | Why the unit is worth the time, in work terms |
-| `teaching` | 3–6 genuinely distinct ideas, kept short |
+| `prerequisites` | Earlier unit numbers that should come first, or none |
 | `exerciseFormat` | Which exercise format this unit uses (see §14.4) |
-| `exercise` | The hands-on task, ~15 min, scaffolded |
-| `reflection` | A 60-second closing prompt — turns doing into a habit |
-| `successCheck` | How the user knows it worked |
-| `tools` | Best-in-class options, tool-neutral |
-| `goingDeeper` | Optional pointer, usually a later unit |
+
+**Content shape (`content` Json):** per §15.10 — a top-level `objectives`
+array, an `items` array (each with `id` / `title` / `estimatedMinutes` /
+`required` / `kind` / `reading` / `exercise` / `selfTest` /
+`deeperPrompt`), a unit-level `reflectionPrompts` array, a `tools` list,
+and a `goingDeeper` pointer. The pre-Amendment-6 flat shape
+(`whyThisMatters` / `teaching` / `exercise` / `reflection` /
+`successCheck` at the top level) is retired.
 
 ### 14.4 Exercise formats
 
@@ -904,9 +1080,17 @@ formulaic. The starting set:
 - Every exercise is **scaffolded** — supply ready-made sample material so a
   user cannot fail a unit by choosing a poor task. Confident users may
   substitute their own.
-- No exercise may ever require pasting confidential or proprietary
-  information into a public AI tool. Either supply non-confidential samples,
-  or explicitly instruct the user to anonymise. **Hard rule.**
+- **Scaffolded samples are the default; user-substituted content is at
+  the user's discretion. Hard rule.** Every exercise ships with
+  non-confidential scaffolded sample material so the user can complete it
+  without surfacing their own data. The in-app workspace (Amendment 6
+  §15.4) runs prompts against Anthropic via CareerPilot's API by default
+  (or the user's BYO provider when configured); content typed or pasted
+  into the workspace is sent to that provider. Users substituting their
+  own work for the scaffolded sample do so at their own discretion and
+  should still strip proprietary content before pasting. No exercise
+  may *require* a user to paste real proprietary material to complete
+  it.
 - Every unit ends with a short reflection step.
 - Tone: a practical, capable peer. Tool-neutral throughout — units teach a
   skill and name best-in-class tools as interchangeable options, never pushing
@@ -967,85 +1151,211 @@ Units are authored against the §14.3 template and rotate exercise formats
 
 ---
 
-## 15. Lesson delivery
+## 15. Lesson delivery (redesigned, Amendment 6)
 
-### 15.1 The lesson screen
+### 15.1 Architecture
 
-A route — `/learn/[unitNumber]` — delivers one buffet unit as a worked-
-through lesson. It takes a `BuffetUnit` and renders its content (§14.3) as
-a guided learning session: the user reads the teaching, works the exercise,
-does the reflection, and reaches an explicit completion.
+The lesson screen follows a table-of-contents architecture, not a stepped
+linear flow.
 
-**Design decision — one unit, one session.** A unit is sized for a single
-sitting (15–30 min, §14.5). The lesson screen carries the user through the
-whole unit in one pass. It does NOT bookmark a position mid-unit: if the
-user leaves a lesson unfinished and returns, the lesson restarts from the
-top. (Resuming mid-unit at the exact section is a possible later
-refinement, deliberately not built now — for short units, restarting is
-acceptable and far simpler.)
+A lesson opens to a TOC view showing the unit's learning objectives and a
+clickable list of items to cover. The user picks any item to enter it, can
+return to the TOC at any time, and can take items in any order unless a
+prerequisite explicitly says otherwise.
 
-### 15.2 The lesson flow
+Route: `/learn/[unitNumber]` continues to be the entry point. It now
+renders the TOC by default. Each item has its own URL:
+`/learn/[unitNumber]/[itemId]`.
 
-The lesson is presented as a short stepped sequence, not one long scroll,
-so there is a clear sense of progression and an unambiguous finish. A small
-progress indicator shows the user where they are (e.g. "Step 2 of 5").
+### 15.2 The TOC view
 
-**Header (persistent):** unit title, tier, time range, exercise format, and
-the one-line skill statement.
+The TOC view shows:
 
-**Steps, in order, drawn from the unit's content (§14.3):**
+- Persistent header: unit title, tier, time range, exercise format
+  summary, the session timer (renamed per §15.9).
+- Learning objectives: 2–4 concrete statements of what the user will be
+  able to do after this unit. Not vague — testable.
+- The item list: each item is a clickable row showing item title, an
+  estimated time, the item's completion status (not started / in progress /
+  complete), and a brief one-line description.
+- Unit completion: a small "Mark unit complete" action that the user can
+  trigger once all (or enough — see §15.5) items are marked done. The
+  action is grayed until the threshold is met.
 
-1. **Why this matters** — the unit's `whyThisMatters`.
-2. **The teaching** — the unit's `teaching` points.
-3. **The exercise** — the unit's `exercise`. This step sends the user to an
-   external AI tool to do the hands-on work, then back. The scaffolded
-   sample material (§14.5) is shown here.
-4. **Reflection** — the unit's `reflection` prompts; the user records their
-   answers.
-5. **Wrap-up** — the unit's `successCheck` (how the user knows it worked),
-   the `tools` list, and the `goingDeeper` pointer. Ends with the
-   completion action.
+### 15.3 The item view
 
-A "Continue" control advances each step. The final step carries the
-explicit **"Mark this unit complete"** action.
+Each item is a single focused screen split into three regions:
 
-### 15.3 Completion gating
+**Left (instruction):** the item's reading content — short, concept-
+focused, ~3–8 paragraphs. Includes any embedded examples.
 
-This is the core fix from the walkthrough. **A unit is marked complete
-ONLY by reaching the end of its lesson and confirming completion there.**
+**Middle (workspace):** the interactive exercise area. If the item has an
+exercise, this is where the user does it (see §15.4). If the item is
+read-only (e.g. a concept introduction), this region shows a short
+"You're ready when you can answer:" self-test (§15.6) and a "Mark this
+item done" action.
 
-- The dashboard no longer has a bare completion checkbox. Completion
-  cannot be toggled from the dashboard.
-- Reaching the wrap-up step and confirming sets `PlateItem.completedAt`.
-- A unit therefore has three states, derived from `PlateItem.startedAt` +
-  `PlateItem.completedAt`:
-  - both null → **not started**
-  - `startedAt` set, `completedAt` null → **in progress**
-  - `completedAt` set → **complete**
+**Right (AI output):** when the workspace runs an AI call, the response
+renders here. Otherwise this region holds the item's tools list, any
+"going deeper" pointer, and a "Another example" / "Try a harder version"
+control where applicable.
 
-### 15.4 The session timer
+On narrower viewports the three regions collapse to a vertical stack —
+instruction first, workspace next, output below — matching the standard
+responsive behavior of comparable platforms.
 
-The Start / Pause / Resume session timer lives on the lesson screen — it
-times the user's work on the unit, where learning actually happens.
+A persistent breadcrumb above the item shows: Unit title › Item title, and
+a "Back to TOC" link.
 
-- **Start** begins timing; **Pause** stops the count and holds; **Resume**
-  continues from where it paused.
-- Counted time is *working time* — paused time does NOT count toward
-  minutes logged or the streak.
-- The streak rule (§13 principle 8) is unchanged: a day counts if the user
-  completes a unit OR logs a session of at least 10 minutes of working
-  time.
+### 15.4 The in-app workspace
 
-The dashboard keeps the "minutes logged" stat but no longer carries the
-timer control — the timer belongs with the lesson. Logging study time
-outside a lesson is out of scope for v1.
+The workspace replaces "open your AI assistant in another tab." Users do
+the exercise inside CareerPilot.
 
-> **Future enhancement — persisted reflection answers.** Reflection
-> answers (§15.2 step 4) are sessionStorage-only in v1. Persisting them
-> via a `reflectionAnswers` Json column on `PlateItem` is a likely
-> follow-on — those answers are valuable longitudinal data about how the
-> user is making progress and should not be discarded permanently. Build
-> when the buffet has fed enough lessons to make the data worth keeping.
+Components:
+- An interactive task-picker (where the exercise involves choosing among
+  scaffolded tasks): cards must be selectable, must visually respond to
+  click, and the selection must drive what the workspace renders.
+- A prompt input: a textarea sized for real prompts (not a single line).
+- A "Run" action that submits the prompt to an AI model and renders the
+  response in the right region.
+- The AI output region: streamed where possible, copyable, with a "Run
+  again" affordance.
+- An iteration loop: the user can refine and re-run the prompt; previous
+  prompts and outputs remain visible in the workspace's history.
+- Autosave: the prompt textarea, the selected scaffolded task, and the
+  output history persist automatically as the user works. No "Save"
+  button. Save targets the database (see §15.7), not sessionStorage.
+- Resume: returning to an item in progress restores the workspace state
+  exactly as it was — selected task, last prompt, output history.
+
+The workspace's exact interaction patterns mirror those of established
+sandbox-style learning tools (DataCamp's editor + run + output pane is the
+nearest reference). Implementers should not invent new patterns where the
+established ones fit.
+
+### 15.5 Item and unit completion
+
+Items have a four-state status: not started, in progress, complete, and
+"I got it" (user-asserted completion without doing the full exercise — see
+re-entry, §15.8).
+
+A unit's overall completion is derived: an explicit "Mark unit complete"
+action is enabled once all required items reach complete or "I got it."
+Items can be marked optional in the unit's content (see §15.10 content
+shape) — optional items don't gate unit completion.
+
+`PlateItem.completedAt` (existing per Amendment 4, retained under
+Amendment 6) is set only when the user explicitly marks the unit complete
+from the TOC. The dashboard continues to reflect this state.
+
+### 15.6 Self-tests
+
+The "How you'll know it worked" check on read-only items and at the end
+of exercises is rendered as a concrete self-test, not as prose. The user
+checks each statement themselves.
+
+Format: a short list of 2–4 concrete check-yourself statements. Example
+for Unit 01:
+
+> Can you name three things you changed between Round 1 and Round 2?
+> Can you state what "good" looked like for your chosen task?
+> Could you re-run this task on a real piece of your work this week?
+
+The user does not need to formally answer — the act of reading and
+checking themselves is the work. A simple "I've checked" affirmation moves
+them forward.
+
+### 15.7 Reflection persistence
+
+Reflection answers persist to the database, not to sessionStorage.
+
+A new `ReflectionAnswer` model (see §8 schema) stores the user's answer to
+each reflection prompt, scoped per `PlateItem` (so the same unit can be
+reflected on differently if re-taken in the future).
+
+Persistence makes longitudinal views possible — a future "look how far
+you've come" view that pulls a user's reflections across units. The
+reflection ceases to be ephemeral; it becomes a learning artifact.
+
+The "your answers stay in this browser session only" line from Amendment 4
+is retired.
+
+### 15.8 Re-entry for completed units
+
+A completed unit must be re-enterable for real practice — not displayed
+as a closed-off footnote.
+
+When a user opens a completed unit, the TOC view shows a re-entry banner
+offering three explicit paths:
+
+- **Review:** re-read the readings only; no exercise.
+- **Repeat the exercise:** same scaffolded tasks, fresh workspace state.
+- **Deepen:** the AI generates a fresh exercise on the same teaching,
+  applied to a different work context. This uses an exercise-variation
+  call to the workspace's AI backend; output is rendered in a fresh
+  workspace.
+
+The dashboard's "complete" state is unchanged by re-entry — re-entry is
+practice, not re-grading.
+
+### 15.9 The session timer
+
+The session timer continues to live on the lesson screen but moves to a
+quieter visual position and is renamed to disambiguate it from the lesson
+navigation control. "Start" alone competed with "Continue" elsewhere; the
+new label is **"Start timer" / "Pause timer" / "Resume timer."**
+
+Behavior is unchanged from Amendment 4: counted time is working time;
+paused time does not count; the streak rule (§13 principle 8) is
+unchanged.
+
+### 15.10 BuffetUnit content shape
+
+The `BuffetUnit.content` Json shape supports the TOC architecture above:
+
+```
+{
+  "objectives": [string, ...],
+  "items": [
+    {
+      "id": string,                     // stable, e.g. "intro", "context-rule", "exercise"
+      "title": string,
+      "estimatedMinutes": number,
+      "required": boolean,
+      "kind": "read" | "exercise" | "wrap",
+      "reading": string,                // markdown
+      "exercise": {                     // null when kind !== "exercise"
+        "format": string,               // one of §14.4
+        "scaffoldedTasks": [...],
+        "instructions": string,
+        "scaffoldedRounds": [...]       // for compare/two-ways formats
+      } | null,
+      "selfTest": [string, ...],
+      "deeperPrompt": string | null     // template for the "Deepen" / "Another example" call
+    },
+    ...
+  ],
+  "reflectionPrompts": [string, ...],
+  "tools": [...],
+  "goingDeeper": string
+}
+```
+
+Unit 01 v2 (currently seeded) must be reshaped into this structure as part
+of the Amendment 6 build. The teaching content of v2 stays intact — it is
+regrouped into the new item structure, not rewritten.
+
+The exercise format taxonomy from §14.4 is unchanged.
+
+### 15.11 What is NOT in this section
+
+- The week-by-week curriculum overview on `/onboard/confirm` remains
+  deferred (Amendment 5's "Related, deferred" section). It is its own
+  amendment once Units 02–10 exist.
+- The lesson screen does not add gamification (badges, points, levels).
+  Streaks remain the only retention mechanic.
+- Multi-user/cohort features are not in scope.
 
 ---
 
