@@ -4,6 +4,7 @@ import { useMemo, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowRight, Check, Loader2 } from "lucide-react";
+import type { UnitState } from "@/lib/lesson-status";
 
 // ---------- types ----------
 
@@ -25,6 +26,8 @@ export interface DashboardPlateItem {
   orderIndex: number;
   startedAt: string | null;
   completedAt: string | null;
+  // Amendment 6 §15.5: four-state rollup computed server-side.
+  unitState: UnitState;
   unit: DashboardUnit;
 }
 
@@ -47,8 +50,6 @@ export interface DashboardData {
   backgroundHref: string;
   userName: string | null;
 }
-
-type UnitStatus = "not-started" | "in-progress" | "complete";
 
 // ---------- component ----------
 
@@ -275,15 +276,9 @@ function CoreUnitsBlock({ items }: { items: DashboardPlateItem[] }) {
   );
 }
 
-function computeStatus(item: DashboardPlateItem): UnitStatus {
-  if (item.completedAt) return "complete";
-  if (item.startedAt) return "in-progress";
-  return "not-started";
-}
-
 function UnitLinkRow({ item }: { item: DashboardPlateItem }) {
-  const status = computeStatus(item);
-  const isComplete = status === "complete";
+  const state = item.unitState;
+  const isComplete = state === "complete";
 
   return (
     <li>
@@ -294,7 +289,7 @@ function UnitLinkRow({ item }: { item: DashboardPlateItem }) {
             ? "border-gray-200 bg-gray-50"
             : "border-gray-200 bg-white hover:border-black"
         }`}
-        aria-label={`Open lesson: ${item.unit.title}`}
+        aria-label={`Open lesson TOC: ${item.unit.title}`}
       >
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
@@ -316,15 +311,15 @@ function UnitLinkRow({ item }: { item: DashboardPlateItem }) {
               <p className="mt-2 text-sm text-gray-700">{item.unit.skill}</p>
             )}
           </div>
-          <StatusBadge status={status} />
+          <StateBadge state={state} />
         </div>
       </Link>
     </li>
   );
 }
 
-function StatusBadge({ status }: { status: UnitStatus }) {
-  if (status === "complete") {
+function StateBadge({ state }: { state: UnitState }) {
+  if (state === "complete") {
     return (
       <div
         className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-black text-white"
@@ -334,7 +329,14 @@ function StatusBadge({ status }: { status: UnitStatus }) {
       </div>
     );
   }
-  if (status === "in-progress") {
+  if (state === "ready_to_complete") {
+    return (
+      <span className="flex-shrink-0 rounded-full border border-black bg-white px-2 py-0.5 text-xs font-medium text-black">
+        Ready to complete
+      </span>
+    );
+  }
+  if (state === "in_progress") {
     return (
       <span className="flex-shrink-0 rounded-full bg-black px-2 py-0.5 text-xs font-medium text-white">
         In progress

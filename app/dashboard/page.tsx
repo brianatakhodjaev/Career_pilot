@@ -2,6 +2,8 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { parseLessonContent } from "@/lib/lesson-content";
+import { unitState, type ItemProgressRow, type UnitState } from "@/lib/lesson-status";
 import { DashboardView, type DashboardData } from "./dashboard-view";
 
 export default async function DashboardPage() {
@@ -16,7 +18,10 @@ export default async function DashboardPage() {
       where: { userId, isActive: true },
       include: {
         plateItems: {
-          include: { unit: true },
+          include: {
+            unit: true,
+            itemProgress: { select: { itemId: true, status: true } },
+          },
           orderBy: { orderIndex: "asc" },
         },
       },
@@ -50,33 +55,62 @@ export default async function DashboardPage() {
     );
   }
 
-  // Post-Amendment 4: no activeSession fetch (timer moves to the lesson
-  // screen). PlateItem.startedAt is added to the serialised data so the
-  // three-state status badge can render (§15.3).
+  // Compute the four-state rollup server-side using lib/lesson-status so
+  // the dashboard client stays lean. Content failing to parse falls back
+  // to a startedAt/completedAt-only computation that ignores per-item
+  // progress (degraded gracefully — won't surface "ready to complete").
   const data: DashboardData = {
     plan: {
       id: plan.id,
       durationWeeks: plan.durationWeeks,
       hoursPerWeek: plan.hoursPerWeek,
       startedAt: plan.startedAt?.toISOString() ?? null,
-      plateItems: plan.plateItems.map((p) => ({
-        id: p.id,
-        tag: p.tag,
-        rationale: p.rationale,
-        orderIndex: p.orderIndex,
-        startedAt: p.startedAt?.toISOString() ?? null,
-        completedAt: p.completedAt?.toISOString() ?? null,
-        unit: {
-          id: p.unit.id,
-          unitNumber: p.unit.unitNumber,
-          title: p.unit.title,
-          skill: p.unit.skill,
-          tier: p.unit.tier,
-          timeRangeMin: p.unit.timeRangeMin,
-          timeRangeMax: p.unit.timeRangeMax,
-          exerciseFormat: p.unit.exerciseFormat,
-        },
-      })),
+      plateItems: plan.plateItems.map((p) => {
+        const content = parseLessonContent(p.unit.content);
+        const itemProgress: ItemProgressRow[] = p.itemProgress
+          .filter(
+            (r): r is { itemId: string; status: ItemProgressRow["status"] } =>
+              r.status === "in_progress" ||
+              r.status === "complete" ||
+              r.status === "got_it",
+          )
+          .map((r) => ({ itemId: r.itemId, status: r.status }));
+
+        let state: UnitState;
+        if (p.completedAt) {
+          state = "complete";
+        } else if (!p.startedAt) {
+          state = "not_started";
+        } else if (content) {
+          state = unitState(
+            { startedAt: p.startedAt, completedAt: p.completedAt },
+            content,
+            itemProgress,
+          );
+        } else {
+          state = "in_progress";
+        }
+
+        return {
+          id: p.id,
+          tag: p.tag,
+          rationale: p.rationale,
+          orderIndex: p.orderIndex,
+          startedAt: p.startedAt?.toISOString() ?? null,
+          completedAt: p.completedAt?.toISOString() ?? null,
+          unitState: state,
+          unit: {
+            id: p.unit.id,
+            unitNumber: p.unit.unitNumber,
+            title: p.unit.title,
+            skill: p.unit.skill,
+            tier: p.unit.tier,
+            timeRangeMin: p.unit.timeRangeMin,
+            timeRangeMax: p.unit.timeRangeMax,
+            exerciseFormat: p.unit.exerciseFormat,
+          },
+        };
+      }),
     },
     progress: {
       currentStreak: progress?.currentStreak ?? 0,

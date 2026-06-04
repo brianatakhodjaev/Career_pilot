@@ -32,17 +32,18 @@ model UserProfile {
 // above remain RESTRICT (safe default).
 
 model User {
-  id            String       @id @default(cuid())
+  id            String        @id @default(cuid())
   name          String?
-  email         String?      @unique
+  email         String?       @unique
   emailVerified DateTime?
   image         String?
   password      String? // bcrypt hash; null for users that only signed in via OAuth
-  createdAt     DateTime     @default(now())
-  updatedAt     DateTime     @updatedAt
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
   accounts      Account[]
   sessions      Session[]
   profile       UserProfile?
+  settings      UserSettings?
 }
 
 model Account {
@@ -137,19 +138,82 @@ model BuffetUnit {
 }
 
 model PlateItem {
-  id          String     @id @default(cuid())
-  userId      String
-  planId      String
-  unitId      String
-  tag         String // core | later | skip
-  rationale   String
-  orderIndex  Int
-  startedAt   DateTime? // set when the lesson is first opened — three-state status with completedAt per §15.3
-  completedAt DateTime?
-  plan        CareerPlan @relation(fields: [planId], references: [id])
-  unit        BuffetUnit @relation(fields: [unitId], references: [id])
+  id           String               @id @default(cuid())
+  userId       String
+  planId       String
+  unitId       String
+  tag          String // core | later | skip
+  rationale    String
+  orderIndex   Int
+  startedAt    DateTime? // set on first lesson TOC visit — four-state rollup with completedAt + LessonItemProgress per §15.5
+  completedAt  DateTime?
+  plan         CareerPlan           @relation(fields: [planId], references: [id])
+  unit         BuffetUnit           @relation(fields: [unitId], references: [id])
+  itemProgress LessonItemProgress[]
+  reflections  ReflectionAnswer[]
+  workspaces   WorkspaceState[]
 
   @@unique([planId, unitId])
+}
+
+// ---------- Lesson-delivery models (Amendment 6) ----------
+// LessonItemProgress: per-item status for the TOC architecture. Item ids
+// match BuffetUnit.content.items[].id strings. Four-state rollup at the
+// unit level is derived (see lib/lesson-status.ts).
+//
+// ReflectionAnswer: persists reflection prompt answers per PlateItem.
+// Stage 1 only stores them when the user re-takes a unit; Stage 2 wires
+// the workspace textareas.
+//
+// WorkspaceState: per-item in-progress workspace contents (selected
+// scaffolded task, current prompt, run history). Populated by Stage 2.
+//
+// UserSettings: BYO API credentials (Stage 3). byoApiKey is encrypted
+// at rest by the application layer.
+
+model LessonItemProgress {
+  id          String    @id @default(cuid())
+  plateItemId String
+  itemId      String // matches BuffetUnit.content.items[].id
+  status      String // "in_progress" | "complete" | "got_it"
+  startedAt   DateTime  @default(now())
+  completedAt DateTime?
+  plateItem   PlateItem @relation(fields: [plateItemId], references: [id])
+
+  @@unique([plateItemId, itemId])
+}
+
+model ReflectionAnswer {
+  id          String    @id @default(cuid())
+  plateItemId String
+  prompt      String // the prompt text the user answered
+  answer      String
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  plateItem   PlateItem @relation(fields: [plateItemId], references: [id])
+}
+
+model WorkspaceState {
+  id             String    @id @default(cuid())
+  plateItemId    String
+  itemId         String // matches BuffetUnit.content.items[].id
+  selectedTaskId String? // which scaffolded task the user picked
+  promptHistory  Json // capped at 20 entries; see lib/workspace-history.ts (Stage 2)
+  currentPrompt  String? // in-flight prompt textarea contents
+  updatedAt      DateTime  @updatedAt
+  plateItem      PlateItem @relation(fields: [plateItemId], references: [id])
+
+  @@unique([plateItemId, itemId])
+}
+
+model UserSettings {
+  id             String   @id @default(cuid())
+  userId         String   @unique
+  byoApiProvider String? // "anthropic" (v1); schema stays String so future providers are non-breaking
+  byoApiKey      String? // encrypted at rest (Stage 3 implementation)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model LearningSession {

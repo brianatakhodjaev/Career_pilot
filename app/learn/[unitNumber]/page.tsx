@@ -1,7 +1,10 @@
 import { notFound, redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { LessonView, type LessonUnit } from "./lesson-view";
+import { parseLessonContent } from "@/lib/lesson-content";
+import { ensurePlateItemStarted } from "@/lib/lesson-entry";
+import type { ItemProgressRow } from "@/lib/lesson-status";
+import { TocView } from "./toc-view";
 
 interface PageProps {
   params: Promise<{ unitNumber: string }>;
@@ -27,29 +30,47 @@ export default async function LearnPage({ params }: PageProps) {
     redirect("/onboard/profile");
   }
 
-  // Lesson is only reachable if the unit is on the user's active plate
-  // (any tag — the dashboard only links core, but direct URL nav to a
-  // later/skip unit on the user's plate is allowed).
   const plateItem = await prisma.plateItem.findFirst({
     where: {
       planId: plan.id,
       unit: { unitNumber },
     },
-    include: { unit: true },
+    include: {
+      unit: true,
+      itemProgress: {
+        select: { itemId: true, status: true },
+      },
+    },
   });
   if (!plateItem) {
     notFound();
   }
 
-  // Json column → typed shape. Content was validated at seed time
-  // (scripts/seed-buffet.ts); cast through unknown is safe in this
-  // direction (Prisma's JsonValue is broader than UnitContent).
-  const content = plateItem.unit.content as unknown as LessonUnit["content"];
+  const content = parseLessonContent(plateItem.unit.content);
+  if (!content) {
+    // Content shape invalid — fail loudly rather than render a broken UI.
+    throw new Error(
+      `BuffetUnit ${unitNumber} content does not conform to the §15.10 lesson-content schema`,
+    );
+  }
+
+  const itemProgress: ItemProgressRow[] = plateItem.itemProgress
+    .filter(
+      (r): r is { itemId: string; status: ItemProgressRow["status"] } =>
+        r.status === "in_progress" || r.status === "complete" || r.status === "got_it",
+    )
+    .map((r) => ({ itemId: r.itemId, status: r.status }));
+
+  // §15.5 / Gap E resolution: startedAt fires on first lesson entry,
+  // server-side so deep-links to items still trigger it.
+  const startedAt = plateItem.completedAt
+    ? plateItem.startedAt
+    : await ensurePlateItemStarted(plateItem.id, plateItem.startedAt);
 
   return (
-    <LessonView
+    <TocView
       plateItemId={plateItem.id}
-      startedAt={plateItem.startedAt?.toISOString() ?? null}
+      startedAt={startedAt?.toISOString() ?? null}
       completedAt={plateItem.completedAt?.toISOString() ?? null}
       unit={{
         unitNumber: plateItem.unit.unitNumber,
@@ -59,8 +80,9 @@ export default async function LearnPage({ params }: PageProps) {
         timeRangeMin: plateItem.unit.timeRangeMin,
         timeRangeMax: plateItem.unit.timeRangeMax,
         exerciseFormat: plateItem.unit.exerciseFormat,
-        content,
       }}
+      content={content}
+      itemProgress={itemProgress}
     />
   );
 }
