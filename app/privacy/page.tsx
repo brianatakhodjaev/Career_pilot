@@ -20,7 +20,7 @@ export default function PrivacyPage() {
           <h2 className="text-base font-semibold">What we collect today</h2>
           <p>
             What you type into onboarding — the persona you pick, the
-            background you paste, your questionnaire answers, and the
+            background you paste or upload, your questionnaire answers, and the
             assessments and plans we generate from them. Account credentials
             for sign-in.
           </p>
