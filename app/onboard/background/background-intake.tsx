@@ -79,10 +79,20 @@ export function BackgroundIntake({ profile }: BackgroundIntakeProps) {
       // ignore
     }
 
+    // A cached reviewSummary / reviewCorrection is only valid if it
+    // was generated from the current background. Writing a (possibly
+    // new) background invalidates them by definition — drop both so
+    // the next /onboard/review pass regenerates from current input.
+    // Symmetric with questionnaire.tsx, which drops the cached
+    // assessment when answers change. Covers cross-account stale
+    // sessionStorage AND the edit-in-place case (user reopens this
+    // screen and changes the textarea).
     const payload: StoredPayload = {
       ...existing,
       profile,
       background: trimmed,
+      reviewSummary: undefined,
+      reviewCorrection: undefined,
     };
     try {
       sessionStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
